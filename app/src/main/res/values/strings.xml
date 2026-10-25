@@ -120,13 +120,8 @@
     <string name="help_talk_title">Talk</string>
     <string name="help_talk">Tap Voice and talk; the words go straight into the field. Pause and what you\'ve said is polished while it keeps listening. Tap the pill to finish (always polished), swipe it right to finish and send, or swipe it left to throw it away. ⌫ keeps working while you talk. Or say “voice bar, done” (or send, keyboard, clean up, cancel) at the end. It also finishes by itself after a stretch of silence. Slide sideways on the idle Voice pill to move the cursor.</string>
     <string name="help_edit_title">Delete</string>
-    <string name="help_edit">Tap ⌫ to delete a character; tap then hold to keep deleting. With three wide buttons, holding ⌫ opens return, space and delete under your finger; with seven equal buttons, return is on the bar, and the keys either side (space and ⌫ unless you change them) are yours to choose: hold one to pick, and it stays that way.</string>
+    <string name="help_edit">Tap ⌫ to delete a character; tap then hold to keep deleting. The four keys around Cursor, ABC and Voice (⋮, space, ⌫ and ↵ unless you change them) are yours to choose: hold one to pick, and it stays that way.</string>
     <string name="try_tip">Tap Voice and talk; tap ABC to type, or hold it for Gboard.</string>
-    <string name="bar_layout">Bar layout</string>
-    <string name="bar_layout_pills">Three wide buttons</string>
-    <string name="bar_layout_pills_summary">Cursor, keyboard and voice in the middle. Hold delete for space and return.</string>
-    <string name="bar_layout_equal">Seven equal buttons</string>
-    <string name="bar_layout_equal_summary">Four keys you choose around Cursor, ABC and Voice (menu, space, delete, return, paste, undo…); hold one to pick another.</string>
     <string name="abc_group">ABC</string>
     <string name="swipe_crashed">Swipe typing crashed the keyboard, so it\'s off (Look › Swipe to type)</string>
     <string name="swipe_unavailable">Swipe typing couldn\'t start (see Settings › Logs)</string>
@@ -136,7 +131,7 @@
     <string name="abc_tap_keys_summary">A full keyboard with suggestions pops up and takes over the bar\'s row; pull its handle down to bring the bar back. Hold ABC for Gboard.</string>
     <string name="abc_tap_gboard">Tap for Gboard</string>
     <string name="abc_tap_gboard_summary">Gboard takes over for typing. Hold ABC for Voicebar\'s keyboard.</string>
-    <string name="bar_key_group">The seven-button bar\'s own keys</string>
+    <string name="bar_key_group">The bar\'s own keys</string>
     <string name="bar_key_slot_menu">Far left</string>
     <string name="bar_key_slot_left">Left of Cursor</string>
     <string name="bar_key_slot_right">Right of Voice</string>

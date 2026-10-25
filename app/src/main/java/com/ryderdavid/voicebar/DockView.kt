@@ -235,9 +235,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (padActive) endPad()
         if (talking) endTalk(cancel = true, polish = false)
         removeCallbacks(repeatRunnable)
-        removeCallbacks(altRunnable)
         if (swiping) swipeEnd(commit = false)
-        alt = Alt.NONE
         pressed = null
         closePicker()
         titleCaseOn = false
@@ -249,14 +247,13 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     }
 
     /** Seven equal pills at rest instead of three wide ones between ⋮ and ⌫. */
-    private var equalBar = false
     /**
      * "Tiered" colors: one dark (primary) action at a time; modes tonal; keys neutral like the
      * keyboard's own keys; ↵ primary-container; ⋮ bare; an open mode (Done, ⋮) tertiary.
      */
     private var tiered = false
-    /** Set for a settings-screen preview: draws this layout at rest, ignores touches and insets. */
-    private var previewLayout: String? = null
+    /** A settings-screen preview: drawn at rest, ignores touches and insets. */
+    private var preview = false
     /** On a wide screen, the buttons kept together at one side (or the middle) instead of spread across. */
     private var barSide = Prefs.DEFAULT_BAR_SIDE
 
@@ -271,9 +268,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     /** Own keys to show instead of the saved ones, in a preview (by slot, as prefs). */
     private var previewKeys: Map<Act, String?> = emptyMap()
 
-    fun showAsPreview(layout: String, colors: String? = null, key: String? = null, rightKey: String? = null,
+    fun showAsPreview(colors: String? = null, key: String? = null, rightKey: String? = null,
                       menuKey: String? = null, enterKey: String? = null) {
-        previewLayout = layout
+        preview = true
         previewColors = colors
         previewKeys = mapOf(Act.SPACE_ALT to key, Act.BACKSPACE to rightKey, Act.MORE to menuKey, Act.ENTER to enterKey)
         insetOverride = 0
@@ -285,7 +282,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     override fun reloadSettings() {
         palette = Palette(context)
         tiered = (previewColors ?: Prefs.get(context).getString(Prefs.BAR_COLORS, Prefs.DEFAULT_BAR_COLORS)) == Prefs.BAR_COLORS_TIERED
-        equalBar = (previewLayout ?: Prefs.get(context).getString(Prefs.BAR_LAYOUT, Prefs.DEFAULT_BAR_LAYOUT)) == Prefs.BAR_LAYOUT_EQUAL
         for ((act, slot) in OWN_SLOTS) own[act] = Bar.ExtraKey.of(previewKeys[act] ?: Prefs.get(context).getString(slot.first, slot.second.pref), slot.second)
         abcTapGboard = Prefs.get(context).getString(Prefs.ABC_TAP, Prefs.DEFAULT_ABC_TAP) == Prefs.ABC_TAP_GBOARD
         keys.swipeEnabled = Prefs.get(context).getBoolean(Prefs.SWIPE_TYPING, Prefs.DEFAULT_SWIPE_TYPING)
@@ -660,18 +656,15 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val gap = dp(5f)
         val b = dp(40f)
         val y = (barH - b) / 2
-        // the bar at rest: ⋮ · Cursor ABC Voice · ⌫, the pills dead center; or, with equalBar,
-        // seven equal pills: ⋮ space Cursor ABC Voice ⌫ ↵
+        // the bar: seven equal pills, ⋮ · own key · Cursor ABC Voice · ⌫ · ↵ (the four around the
+        // middle three are own keys)
         val ew = (w - 2 * pad - 6 * gap) / 7
         fun slot(i: Int) = rect(pad + i * (ew + gap), y, ew, b)
-        val more = if (equalBar) slot(0) else rect(pad, y, b, b)
-        val bksp = if (equalBar) slot(5) else rect(w - pad - b, y, b, b)
-        val pl = more.right + gap
-        val pr = bksp.left - gap
-        val pw = (pr - pl - 2 * gap) / 3
-        val cursorPill = if (equalBar) slot(2) else rect(pl, y, pw, b)
-        val abcPill = if (equalBar) slot(3) else rect(pl + pw + gap, y, pw, b)
-        val voicePill = if (equalBar) slot(4) else rect(pl + 2 * (pw + gap), y, pw, b)
+        val more = slot(0)
+        val bksp = slot(5)
+        val cursorPill = slot(2)
+        val abcPill = slot(3)
+        val voicePill = slot(4)
         val busyVoice = voice == Bar.Voice.CLEANING || voice == Bar.Voice.MESSAGE
 
         when {
@@ -679,81 +672,40 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             // which goes on into the field) give way until it's pulled down
             drawer == Drawer.KEYS && !talking -> Unit
             talking || voice == Bar.Voice.CLEANING -> {
-                // dictating: Cursor and ABC slide left into ⋮'s place (and the own key's, with seven
-                // buttons), pushing those off the bar's left edge, and Voice becomes the recording pill
-                // over the rest; ⌫ (and ↵) stay where they were. Tapping Cursor or ABC pauses the
-                // dictation for the pad or the keyboard. Polishing keeps the places, the keys ghosted.
+                // dictating: Cursor and ABC slide left into ⋮'s and the own key's places, pushing those
+                // off the bar's left edge, and Voice becomes the recording pill over the rest; the two
+                // keys right of Voice stay where they were. Tapping Cursor or ABC pauses the dictation
+                // for the pad or the keyboard. Polishing keeps the places, the keys ghosted.
                 val k = if (talking) 1f else GHOST
-                val out = (if (equalBar) 2 * (ew + gap) else b + gap)
+                val out = 2 * (ew + gap)
                 items.add(Item("more", Act.MORE, RectF(more).apply { offset(-out, 0f) }, 0f))
-                if (equalBar) items.add(Item("space", Act.SPACE_ALT, slot(1).apply { offset(-out, 0f) }, 0f))
-                val talkCursor = if (equalBar) slot(0) else rect(pad, y, b, b)
-                val talkAbc = if (equalBar) slot(1) else rect(pad + b + gap, y, b, b)
+                items.add(Item("space", Act.SPACE_ALT, slot(1).apply { offset(-out, 0f) }, 0f))
+                val talkCursor = slot(0)
+                val talkAbc = slot(1)
                 items.add(Item("cursor", Act.CURSOR, talkCursor, k))
                 items.add(Item("abc", Act.KEYBOARD, talkAbc, k))
-                val span = RectF(talkAbc.right + gap, y, voicePill.right, y + b)
-                if (talking && alt == Alt.TRAY && !equalBar) {
-                    // ⌫ held: the same ↵ · space · ⌫ tray as at rest; the recording pill gives it room
-                    val trayW = w * TRAY_FRACTION
-                    val tray = RectF(w - pad - trayW, y, w - pad, y + b)
-                    val sw = (trayW - 2 * gap) / 3
-                    items.add(Item("voice", Act.MIC, RectF(span.left, y, tray.left - gap, y + b)))
-                    items.add(Item("tray", Act.PANEL, tray, 1f, b / 2))
-                    items.add(Item("enter", Act.ENTER, rect(tray.left, y, sw, b)))
-                    items.add(Item("space", Act.SPACE_ALT, rect(tray.left + sw + gap, y, sw, b)))
-                    items.add(Item("bksp", Act.BACKSPACE, rect(tray.right - sw, y, sw, b)))
-                } else {
-                    items.add(Item("voice", Act.MIC, span))
-                    items.add(Item("tray", Act.PANEL, RectF(bksp), 0f, b / 2))
-                    items.add(Item("bksp", Act.BACKSPACE, bksp, k))
-                }
-                if (equalBar) items.add(Item("enter", Act.ENTER, slot(6), k))
+                items.add(Item("voice", Act.MIC, RectF(talkAbc.right + gap, y, voicePill.right, y + b)))
+                items.add(Item("bksp", Act.BACKSPACE, bksp, k))
+                items.add(Item("enter", Act.ENTER, slot(6), k))
             }
             busyVoice -> items.add(Item("voice", Act.MIC, RectF(pad, y, w - pad, y + b)))
-            alt == Alt.TRAY -> {
-                // ⌫ held: it opens leftward into ↵ · space · ⌫, a good third of the bar, and the
-                // pills give it room by shrinking to their icons
-                val trayW = w * TRAY_FRACTION
-                val tray = RectF(w - pad - trayW, y, w - pad, y + b)
-                val sw = (trayW - 2 * gap) / 3
-                val pr2 = tray.left - gap
-                val pw2 = (pr2 - pl - 2 * gap) / 3
-                items.add(Item("more", Act.MORE, more))
-                items.add(Item("cursor", Act.CURSOR, rect(pl, y, pw2, b)))
-                items.add(Item("abc", Act.KEYBOARD, rect(pl + pw2 + gap, y, pw2, b)))
-                items.add(Item("voice", Act.MIC, rect(pl + 2 * (pw2 + gap), y, pw2, b)))
-                items.add(Item("tray", Act.PANEL, tray, 1f, b / 2))
-                items.add(Item("enter", Act.ENTER, rect(tray.left, y, sw, b)))
-                items.add(Item("space", Act.SPACE_ALT, rect(tray.left + sw + gap, y, sw, b)))
-                items.add(Item("bksp", Act.BACKSPACE, rect(tray.right - sw, y, sw, b)))
-            }
             !talking && voice == Bar.Voice.OFF && commandSaid != null -> {
                 // "voice bar" heard at rest: the Voice pill grows over Cursor and ABC, so there's
                 // room to say what it's waiting for
                 items.add(Item("more", Act.MORE, more))
-                if (equalBar) items.add(Item("space", Act.SPACE_ALT, slot(1)))
-                items.add(Item("voice", Act.MIC, RectF(cursorPill.left, y, voicePill.right, y + b)))
-                items.add(Item("tray", Act.PANEL, RectF(bksp), 0f, b / 2))
-                items.add(Item("bksp", Act.BACKSPACE, bksp))
-                if (equalBar) items.add(Item("enter", Act.ENTER, slot(6)))
-            }
-            equalBar -> {
-                items.add(Item("more", Act.MORE, more))
                 items.add(Item("space", Act.SPACE_ALT, slot(1)))
-                items.add(Item("cursor", Act.CURSOR, cursorPill))
-                items.add(Item("abc", Act.KEYBOARD, abcPill))
-                items.add(Item("voice", Act.MIC, voicePill))
-                items.add(Item("tray", Act.PANEL, RectF(bksp), 0f, b / 2))
+                items.add(Item("voice", Act.MIC, RectF(cursorPill.left, y, voicePill.right, y + b)))
                 items.add(Item("bksp", Act.BACKSPACE, bksp))
                 items.add(Item("enter", Act.ENTER, slot(6)))
             }
             else -> {
                 items.add(Item("more", Act.MORE, more))
+                items.add(Item("space", Act.SPACE_ALT, slot(1)))
                 items.add(Item("cursor", Act.CURSOR, cursorPill))
                 items.add(Item("abc", Act.KEYBOARD, abcPill))
                 items.add(Item("voice", Act.MIC, voicePill))
-                items.add(Item("tray", Act.PANEL, RectF(bksp), 0f, b / 2))
                 items.add(Item("bksp", Act.BACKSPACE, bksp))
+                items.add(Item("enter", Act.ENTER, slot(6)))
             }
         }
 
@@ -765,8 +717,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val keysOpen = drawer == Drawer.KEYS
         items.add(0, Item("keysPanel", Act.PANEL, if (keysOpen) RectF(dp(6f), top + dp(4f), w - dp(6f), barH - dp(2f)) else RectF(abcPill), if (keysOpen) 1f else 0f, if (keysOpen) dp(PANEL_CORNER_DP) else b / 2))
         val menuOpen = drawer == Drawer.MENU
-        // it grows out of the key that opens it: ⋮, or on the seven-button bar whichever own key is set to it
-        val menuFrom = if (!equalBar) more else listOf(Act.MORE to more, Act.SPACE_ALT to slot(1), Act.BACKSPACE to bksp, Act.ENTER to slot(6))
+        // it grows out of whichever own key opens it
+        val menuFrom = listOf(Act.MORE to more, Act.SPACE_ALT to slot(1), Act.BACKSPACE to bksp, Act.ENTER to slot(6))
             .firstOrNull { own[it.first] == Bar.ExtraKey.MENU }?.second ?: more
         items.add(0, Item("menuPanel", Act.PANEL, if (menuOpen) RectF(dp(4f), top + dp(4f), w - dp(4f), -dp(2f)) else RectF(menuFrom), if (menuOpen) 1f else 0f, if (menuOpen) dp(PANEL_CORNER_DP) else b / 2))
 
@@ -894,24 +846,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     }
     private var repeatHalted = false
 
-    // ---------------------------------------------------------------- hold ↵ for space, ⌫ for delete-all
-
-    private enum class Alt { NONE, TRAY }
-    private var alt = Alt.NONE
-    /** Which of the held ⌫'s keys the finger is on: ⌫, space or ↵. */
-    private var trayHot = Act.BACKSPACE
-    private val altRunnable = Runnable {
-        val p = pressed ?: return@Runnable
-        if (p.act != Act.BACKSPACE || alt != Alt.NONE) return@Runnable
-        alt = Alt.TRAY
-        trayHot = Act.BACKSPACE
-        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        // holding only opens the tray; rapid fire is tap-then-hold (see onDown)
-        invalidate()
-    }
     /** When ⌫ was last tapped: pressing it again soon after and holding deletes repeatedly. */
     private var lastBkspTap = 0L
-    @VisibleForTesting internal val testAlt get() = alt.name
 
     // ---------------------------------------------------------------- Voicebar's keyboard
 
@@ -1069,15 +1005,14 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         openPicker(p.act)
     }
 
-    /** What an own key does: on the seven-button bar ⋮, the key after it, ⌫ and ↵ are all own keys; elsewhere none is. */
-    private fun keyOf(act: Act): Bar.ExtraKey? = if (equalBar) own[act] else null
+    /** What an own key does: ⋮, the key after it, ⌫ and ↵ are all own keys. */
+    private fun keyOf(act: Act): Bar.ExtraKey? = own[act]
 
-    /** A press on this deletes: ⌫ itself, or an own key set to Backspace (whose double-tap-and-hold keeps deleting). */
-    private fun deletes(act: Act) = if (equalBar && act in own) keyOf(act) == Bar.ExtraKey.BACKSPACE
-        else act == Act.BACKSPACE
+    /** A press on this deletes: an own key set to Backspace (whose double-tap-and-hold keeps deleting). */
+    private fun deletes(act: Act) = keyOf(act) == Bar.ExtraKey.BACKSPACE
 
-    /** This key opens the ⋮ menu: ⋮ itself, or on the seven-button bar whichever own keys are set to it. */
-    private fun opensMenu(act: Act) = if (equalBar) keyOf(act) == Bar.ExtraKey.MENU else act == Act.MORE
+    /** This key opens the ⋮ menu: whichever own keys are set to it. */
+    private fun opensMenu(act: Act) = keyOf(act) == Bar.ExtraKey.MENU
 
     /** The ⋮ menu, opened or closed; mid-dictation it pauses the dictation as Cursor and ABC do. */
     private fun toggleMenu() = when {
@@ -1130,7 +1065,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val slot = OWN_SLOTS.getValue(pickerFor)
         if (own[pickerFor] != key) {
             own[pickerFor] = key
-            if (previewLayout == null) Prefs.get(context).edit().putString(slot.first, key.pref).apply()
+            if (!preview) Prefs.get(context).edit().putString(slot.first, key.pref).apply()
             AppLog.log("bar", "${slot.first} is now ${key.pref}")
             requestLayout() // the menu opens out of whichever key now opens it
         }
@@ -1638,7 +1573,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     @android.annotation.SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        if (previewLayout != null) return false
+        if (preview) return false
         if (picker && pickerTouch(e)) return true
         if (keysTouch(e)) return true
         if (e.actionMasked == MotionEvent.ACTION_DOWN && tip != null && e.y < barTop) return true
@@ -1689,7 +1624,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         sliding = false
         consumed = false
         repeatHalted = false
-        alt = Alt.NONE
         val it = hit(x, y)
         pressed = it
         if (it == null) return
@@ -1699,7 +1633,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Act.MIC -> if (!talking && voice == Bar.Voice.OFF && commandSaid == null && drawer == Drawer.NONE) postDelayed(micHoldRunnable, MIC_HOLD_MS)
             Act.CLIP_ROW -> { clipDown(it.rect, x); return }
             Act.CLIP_TABS -> return
-            Act.BACKSPACE -> if (equalBar && drawer == Drawer.NONE) ownKeyDown(Act.BACKSPACE) else {
+            // the own keys: a hold opens their choices (with a panel open, a Backspace one still keeps deleting)
+            Act.BACKSPACE, Act.SPACE_ALT, Act.MORE, Act.ENTER -> if (drawer == Drawer.NONE) ownKeyDown(it.act) else if (deletes(it.act)) {
                 val now = SystemClock.uptimeMillis()
                 if (lastBkspTap > 0L && now - lastBkspTap < DOUBLE_TAP_MS) {
                     // the second press of a double: delete now and keep deleting while it's held
@@ -1707,9 +1642,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
                     consumed = true
                     listener?.onKey(Bar.Key.DELETE, false)
                     postDelayed(repeatRunnable, BKSP_REPEAT_START_MS)
-                } else postDelayed(altRunnable, ALT_HOLD_MS)
+                }
             }
-            Act.SPACE_ALT, Act.MORE, Act.ENTER -> if (equalBar && drawer == Drawer.NONE) ownKeyDown(it.act)
             else -> Unit
         }
         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -1781,22 +1715,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (keyOf(p.act) != null && drawer == Drawer.NONE && !sliding &&
             downY - y > dp(SWIPE_UP_DP) && downY - y > abs(x - downX)) { removeCallbacks(repeatRunnable); openPicker(p.act); pickerHover(x, y); return }
         if (p.act == Act.CLIP_ROW) { clipMove(x); return }
-        if (alt == Alt.TRAY) {
-            // which of ↵ · space · ⌫ is under the finger (by column; height doesn't matter)
-            val e = rectOf("enter") ?: return
-            val sp = rectOf("space") ?: return
-            val hot = when {
-                x < (e.right + sp.left) / 2 -> Act.ENTER
-                x < (sp.right + (rectOf("bksp")?.left ?: sp.right)) / 2 -> Act.SPACE_ALT
-                else -> Act.BACKSPACE
-            }
-            if (hot != trayHot) {
-                trayHot = hot
-                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                invalidate()
-            }
-            return
-        }
         // the purple "voice bar" pill swiped up: not a command after all
         if (p.act == Act.MIC && commandSaid != null && !swiping && !sliding &&
             downY - y > dp(SWIPE_UP_DP) && downY - y > abs(x - downX)) {
@@ -1830,7 +1748,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         }
         if (d2(p.rect, x, y) > dp(16f) * dp(16f)) {
             removeCallbacks(repeatRunnable)
-            removeCallbacks(altRunnable)
             removeCallbacks(micHoldRunnable)
             pressed = null
             invalidate()
@@ -1841,7 +1758,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val p = pressed
         pressed = null
         removeCallbacks(repeatRunnable)
-        removeCallbacks(altRunnable)
         removeCallbacks(pickerHoldRunnable)
         removeCallbacks(abcHoldRunnable)
         removeCallbacks(micHoldRunnable)
@@ -1851,22 +1767,10 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             return
         }
         if (swiping) { swipeEnd(commit = true); return }
-        if (p == null) { alt = Alt.NONE; invalidate(); return }
+        if (p == null) { invalidate(); return }
         if (p.act == Act.PAD) { padUp(); return }
         if (p.act == Act.CLIP_ROW) { clipUp(p.rect, x, y); return }
         if (p.act == Act.CLIP_TABS) { tabUp(x, y); return }
-        if (alt == Alt.TRAY) {
-            alt = Alt.NONE
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            when (trayHot) {
-                Act.ENTER -> { listener?.onKey(Bar.Key.ENTER, false) }
-                Act.SPACE_ALT -> { listener?.onKey(Bar.Key.SPACE, false) }
-                else -> listener?.onKey(Bar.Key.DELETE, false)
-            }
-            trayHot = Act.BACKSPACE
-            invalidate()
-            return
-        }
         if (consumed || sliding) { sliding = false; invalidate(); return }
         act(p)
         invalidate()
@@ -1874,14 +1778,12 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     private fun onCancel() {
         removeCallbacks(repeatRunnable)
-        removeCallbacks(altRunnable)
         removeCallbacks(pickerHoldRunnable)
         removeCallbacks(abcHoldRunnable)
         removeCallbacks(micHoldRunnable)
         pickerTap = false
         if (swiping) swipeEnd(commit = false)
         if (padActive) endPad()
-        alt = Alt.NONE
         pressed = null
         sliding = false
         invalidate()
@@ -2011,11 +1913,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val al = a.v[5]
         if (al <= 0.01f) return
         val pal = palette
-        if (id == "tray") {
-            fill.color = alpha(pal.bloomKey, al)
-            canvas.drawRoundRect(a.rect, a.v[4], a.v[4], fill)
-            return
-        }
         fill.color = when (id) {
             "padPanel" -> alpha(pal.bloomKey, al)
             "keysPanel" -> alpha(keys.cardColor(pal), al)
@@ -2041,7 +1938,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         // ghosted controls keep their full size; only coming and going scales them
         val s = 0.35f + 0.65f * (al / a.full).coerceAtMost(1f)
         canvas.scale(s, s, r.centerX(), r.centerY())
-        val down = pressed?.id == a.id && alt == Alt.NONE
+        val down = pressed?.id == a.id
         when (a.act) {
             Act.MIC -> { drawVoicePill(canvas, r, a.v[4], al, now, down); if (talking && titleCaseOn) drawTitleCaseBadge(canvas, r, al) }
             Act.CURSOR -> drawPill(canvas, r, a.v[4], al, down, Act.CURSOR)
@@ -2054,27 +1951,21 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     private fun drawRound(canvas: Canvas, act: Act, r: RectF, corner: Float, al: Float, down: Boolean) {
         val pal = palette
-        val inTray = alt == Alt.TRAY && (act == Act.ENTER || act == Act.SPACE_ALT || act == Act.BACKSPACE)
-        val hotAlt = inTray && act == trayHot
-        // on the bar (not the letters' bottom row or the ⌫ tray): keys stay neutral in every state
-        val atRest = !inTray
         val bg = when {
             // tiered: keeping is the strong action (primary); throwing away is tonal red, so it never outshouts ✓
             tiered && act == Act.DISCARD -> if (down) ColorUtils.blendARGB(pal.discard, pal.onDiscard, 0.14f) else pal.discard
             act == Act.DISCARD -> if (down) ColorUtils.blendARGB(pal.error, Color.BLACK, 0.18f) else pal.error
             act == Act.FINISH -> if (down) ColorUtils.blendARGB(pal.pressed, Color.BLACK, 0.18f) else pal.pressed
             tiered && opensMenu(act) && drawer == Drawer.MENU -> pal.letters
-            tiered && down && atRest && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER) -> ColorUtils.blendARGB(pal.cardinal, pal.onCardinal, 0.14f)
-            tiered && atRest && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER) -> pal.cardinal
-            tiered && atRest && act == Act.MORE -> if (down) pal.cardinal else Color.TRANSPARENT
-            down || hotAlt -> pal.pressed
-            inTray -> Color.TRANSPARENT
+            tiered && down && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER) -> ColorUtils.blendARGB(pal.cardinal, pal.onCardinal, 0.14f)
+            tiered && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER) -> pal.cardinal
+            tiered && act == Act.MORE -> if (down) pal.cardinal else Color.TRANSPARENT
+            down -> pal.pressed
             act == Act.CLEAR_ALL -> pal.discard
-            // on the seven-button bar ↵ is an own key like the rest: secondary, whatever it's set to
-            act == Act.ENTER -> if (equalBar) pal.diagonal else pal.center
             opensMenu(act) && drawer == Drawer.MENU -> pal.pressed
-            act in TONAL -> pal.diagonal
-            equalBar && drawer == Drawer.NONE && (act == Act.MORE || act == Act.SPACE_ALT) -> pal.diagonal
+            // the own keys: secondary, whatever they're set to
+            act in TONAL || act == Act.ENTER -> pal.diagonal
+            drawer == Drawer.NONE && (act == Act.MORE || act == Act.SPACE_ALT) -> pal.diagonal
             else -> Color.TRANSPARENT
         }
         val fg = when {
@@ -2082,14 +1973,12 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             act == Act.DISCARD -> pal.onError
             act == Act.FINISH -> pal.onPressed
             tiered && opensMenu(act) && drawer == Drawer.MENU -> pal.onLetters
-            tiered && atRest && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER || act == Act.MORE) -> pal.onCardinal
-            down || hotAlt -> pal.onPressed
-            inTray -> pal.onDiagonal
-            act == Act.ENTER -> if (equalBar) pal.onDiagonal else pal.onCenter
+            tiered && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER || act == Act.MORE) -> pal.onCardinal
+            down -> pal.onPressed
             act == Act.CLEAR_ALL -> pal.onDiscard
             opensMenu(act) && drawer == Drawer.MENU -> pal.onPressed
-            act in TONAL -> pal.onDiagonal
-            equalBar && drawer == Drawer.NONE && (act == Act.MORE || act == Act.SPACE_ALT) -> pal.onDiagonal
+            act in TONAL || act == Act.ENTER -> pal.onDiagonal
+            drawer == Drawer.NONE && (act == Act.MORE || act == Act.SPACE_ALT) -> pal.onDiagonal
             else -> pal.onCardinal
         }
         if (Color.alpha(bg) > 0) {
@@ -2132,7 +2021,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val done = act == Act.CURSOR && drawer == Drawer.PAD
         // with equal pills, Cursor and ABC take Voice's dark fill: the three modes stand apart from the keys
         // while dictating they step back to the secondary tone, so the recording pill keeps the weight
-        val modeDark = equalBar && drawer == Drawer.NONE && !tiered && !talking && voice != Bar.Voice.CLEANING
+        val modeDark = drawer == Drawer.NONE && !tiered && !talking && voice != Bar.Voice.CLEANING
         val bg = when {
             tiered && done -> pal.letters
             tiered && down -> ColorUtils.blendARGB(pal.diagonal, pal.onDiagonal, 0.14f)
@@ -2960,7 +2849,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         const val DOUBLE_TAP_MS = 350L
         const val REPEAT_START_MS = 400L
         const val REPEAT_MS = 50L
-        const val ALT_HOLD_MS = 300L
         /** Holding ABC this long gives the other keyboard (Gboard, or Voicebar's). */
         const val ABC_HOLD_MS = 450L
         /** After a pause for the pad or keyboard: how often, and how many times, to check the polish is in before listening again. */
@@ -2992,9 +2880,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Act.ENTER to (Prefs.BAR_KEY_ENTER to Bar.ExtraKey.ENTER),
         )
         const val BKSP_REPEAT_START_MS = 250L
-        /** Resting on ⌫ in the open tray this long starts deleting repeatedly. */
-        /** How much of the bar the held ⌫ opens into. */
-        const val TRAY_FRACTION = 0.38f
         const val PAD_HOLD_MS = 350L
         const val PAD_COL_DP = 8f
         const val PAD_LINE_DP = 22f

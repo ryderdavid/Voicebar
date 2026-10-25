@@ -57,7 +57,7 @@ class RenderExtraKeyTest {
     /** The seven-button bar at rest, partway into dictation (Cursor and ABC sliding left), and dictating. */
     private fun renderListening(name: String, bg: Int) {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL); putString(Prefs.BAR_KEY, "paste") }
+        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_KEY, "paste") }
         val dock = DockView(activity, null)
         dock.listener = object : Bar.Listener {
             override fun onKey(key: Bar.Key, repeat: Boolean) {}
@@ -99,7 +99,7 @@ class RenderExtraKeyTest {
     /** The own key held, then the thumb slid up onto Undo. */
     private fun renderPicker(name: String, bg: Int, act: DockView.Act = DockView.Act.SPACE_ALT) {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL); putString(Prefs.BAR_KEY, "paste") }
+        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_KEY, "paste") }
         val dock = DockView(activity, null)
         dock.listener = object : Bar.Listener {
             override fun onKey(key: Bar.Key, repeat: Boolean) {}
@@ -141,7 +141,7 @@ class RenderExtraKeyTest {
         val bars = rows.map { (key, colors) ->
             Prefs.get(activity).edit { clear() }
             val dock = DockView(activity, null)
-            dock.showAsPreview(Prefs.BAR_LAYOUT_EQUAL, colors, key.pref)
+            dock.showAsPreview(colors, key.pref)
             activity.setContentView(dock, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(300))
             dock.settle()

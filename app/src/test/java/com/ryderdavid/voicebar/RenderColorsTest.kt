@@ -36,13 +36,13 @@ class RenderColorsTest {
 
     private fun renderAll(mode: String) {
         for (colors in listOf(Prefs.BAR_COLORS_CLASSIC, Prefs.BAR_COLORS_TIERED))
-            for (layout in listOf(Prefs.BAR_LAYOUT_PILLS, Prefs.BAR_LAYOUT_EQUAL))
+            for (layout in listOf("equal"))
                 render(mode, colors, layout)
     }
 
     private fun render(mode: String, colors: String, layout: String) {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_COLORS, colors); putString(Prefs.BAR_LAYOUT, layout) }
+        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_COLORS, colors) }
         val dock = DockView(activity, null)
         var down = 0L
         dock.listener = object : Bar.Listener {

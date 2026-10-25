@@ -119,20 +119,13 @@ class DockViewTest {
         idle(20)
     }
 
-    @Test fun atRestThreeEqualPillsSitBetweenTheMenuAndBackspaceEnter() {
+    @Test fun atRestSevenEqualButtonsInOneRow() {
         assertEquals((52 * d).toInt(), dock.height)
-        for (a in listOf(DockView.Act.MORE, DockView.Act.CURSOR, DockView.Act.MIC, DockView.Act.KEYBOARD, DockView.Act.BACKSPACE)) assertTrue(dock.testHas(a), "$a")
-        assertFalse(dock.testHas(DockView.Act.ENTER), "↵ lives in the held ⌫ now")
-        val more = dock.testItem(DockView.Act.MORE)!!
-        val c = dock.testItem(DockView.Act.CURSOR)!!
-        val k = dock.testItem(DockView.Act.KEYBOARD)!!
-        val v = dock.testItem(DockView.Act.MIC)!!
-        val b = dock.testItem(DockView.Act.BACKSPACE)!!
-        assertTrue(more.left < c.left && c.right < k.left && k.right < v.left && v.right < b.left, "⋮ · Cursor ABC Voice · ⌫")
-        assertEquals(c.width(), v.width(), 0.5f)
-        assertEquals(v.width(), k.width(), 0.5f)
-        assertTrue(v.width() > 90 * d, "roomy pills: ${v.width() / d} dp")
-        assertTrue(abs(k.centerX() - dock.width / 2f) < 2 * d, "the pills sit dead center")
+        val order = listOf(DockView.Act.MORE, DockView.Act.SPACE_ALT, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.BACKSPACE, DockView.Act.ENTER)
+        val rects = order.map { assertNotNull(dock.testItem(it), "$it") }
+        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.right < b.left, "⋮ · space · Cursor ABC Voice · ⌫ · ↵") }
+        rects.forEach { assertEquals(rects[0].width(), it.width(), 0.5f) }
+        assertTrue(abs(rects[3].centerX() - dock.width / 2f) < 2 * d, "ABC sits dead center")
         dock.testSetBottomInset((24 * d).toInt())
         relayout()
         assertEquals((76 * d).toInt(), dock.height, "plus the navigation area under it, in the same surface")
@@ -196,7 +189,7 @@ class DockViewTest {
     }
 
     @Test fun withSevenButtonsCursorAndAbcTakeTheFirstTwoPlacesWhileDictating() {
-        Prefs.get(activity).edit().putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL).commit()
+        Prefs.get(activity).edit().commit()
         dock.reloadSettings()
         relayout()
         val more = dock.testItem(DockView.Act.MORE)!!
@@ -352,7 +345,7 @@ class DockViewTest {
     }
 
     @Test fun theSevenButtonBarsOwnKeyDoesWhatItsSetToAndReturnAndDeleteStayPut() {
-        Prefs.get(activity).edit().putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL).commit()
+        Prefs.get(activity).edit().commit()
         dock.reloadSettings()
         relayout()
         val enter = dock.testItem(DockView.Act.ENTER)!!
@@ -413,7 +406,7 @@ class DockViewTest {
     }
 
     @Test fun aMenuKeyRightOfVoiceOpensTheMenuAndPausesADictation() {
-        Prefs.get(activity).edit().putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL).putString(Prefs.BAR_KEY_ENTER, "menu")
+        Prefs.get(activity).edit().putString(Prefs.BAR_KEY_ENTER, "menu")
             .putString(Prefs.BAR_KEY_MENU, "paste").commit()
         dock.reloadSettings()
         relayout()
@@ -439,7 +432,7 @@ class DockViewTest {
     }
 
     @Test fun onlyTheSpaceKeySlidesTheCursor() {
-        Prefs.get(activity).edit().putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL).putString(Prefs.BAR_KEY, "paste").commit()
+        Prefs.get(activity).edit().putString(Prefs.BAR_KEY, "paste").commit()
         dock.reloadSettings()
         relayout()
         val p = at(DockView.Act.SPACE_ALT)
@@ -451,7 +444,7 @@ class DockViewTest {
     }
 
     private fun sevenButtons(key: String = "space") {
-        Prefs.get(activity).edit().putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL).putString(Prefs.BAR_KEY, key).commit()
+        Prefs.get(activity).edit().putString(Prefs.BAR_KEY, key).commit()
         dock.reloadSettings()
         relayout()
     }
@@ -776,7 +769,7 @@ class DockViewTest {
 
 
     private fun useEqualBar() {
-        Prefs.get(activity).edit { putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL) }
+        Prefs.get(activity).edit { }
         dock.reloadSettings()
         relayout()
     }
@@ -814,7 +807,6 @@ class DockViewTest {
         touch(MotionEvent.ACTION_DOWN, b)
         idle(800)
         touch(MotionEvent.ACTION_UP, b)
-        assertEquals("NONE", dock.testAlt)
         assertFalse(dock.testPicker)
         assertTrue(keys.size >= 4 && keys.all { it == Bar.Key.DELETE }, "repeated deletes, got $keys")
     }
@@ -858,50 +850,13 @@ class DockViewTest {
         assertEquals(listOf<Any>(Bar.Key.DELETE), keys)
     }
 
-    @Test fun holdingBackspaceOpensEnterSpaceBackspace() {
-        val pillBefore = dock.testItem(DockView.Act.MIC)!!.width()
-        val b = at(DockView.Act.BACKSPACE)
-        touch(MotionEvent.ACTION_DOWN, b)
-        idle(320)
-        assertEquals("TRAY", dock.testAlt)
-        assertTrue(keys.isEmpty(), "nothing deleted by holding")
-        val bk = dock.testItem(DockView.Act.BACKSPACE)!!
-        val sp = dock.testItem(DockView.Act.SPACE_ALT)!!
-        val en = dock.testItem(DockView.Act.ENTER)!!
-        assertTrue(en.right < sp.left && sp.right < bk.left, "↵ · space · ⌫, right to left from the finger")
-        assertTrue(bk.right - en.left > dock.width * 0.33f, "a good third of the bar")
-        assertTrue(dock.testItem(DockView.Act.MIC)!!.width() < pillBefore * 0.75f, "the pills make room")
-        touch(MotionEvent.ACTION_MOVE, PointF(sp.centerX(), b.y - 30 * d)) // a little high is fine
-        touch(MotionEvent.ACTION_UP, PointF(sp.centerX(), b.y - 30 * d))
-        assertEquals(listOf<Any>(Bar.Key.SPACE), keys)
-        assertEquals("NONE", dock.testAlt)
-        touch(MotionEvent.ACTION_DOWN, b); idle(320)
-        val en2 = dock.testItem(DockView.Act.ENTER)!!
-        touch(MotionEvent.ACTION_MOVE, PointF(en2.centerX(), b.y)); touch(MotionEvent.ACTION_UP, PointF(en2.centerX(), b.y))
-        assertEquals(listOf<Any>(Bar.Key.SPACE, Bar.Key.ENTER), keys)
-        // held and let go on ⌫ itself: one delete
-        touch(MotionEvent.ACTION_DOWN, b); idle(320); touch(MotionEvent.ACTION_UP, b)
-        assertEquals(Bar.Key.DELETE, keys.last())
-        assertEquals(3, keys.size)
-    }
-
-    @Test fun holdingBackspaceNeverRapidFires() {
-        val b = at(DockView.Act.BACKSPACE)
-        touch(MotionEvent.ACTION_DOWN, b)
-        idle(2_000)
-        assertEquals("TRAY", dock.testAlt)
-        assertTrue(keys.isEmpty(), "a long hold just keeps the tray open: $keys")
-        touch(MotionEvent.ACTION_UP, b)
-        assertEquals(listOf<Any>(Bar.Key.DELETE), keys)
-    }
-
     @Test fun tapThenHoldBackspaceRapidFires() {
         val b = at(DockView.Act.BACKSPACE)
         tap(DockView.Act.BACKSPACE)
         idle(100)
         touch(MotionEvent.ACTION_DOWN, b)
         idle(1_000)
-        assertEquals("NONE", dock.testAlt, "no tray on the second press")
+        assertFalse(dock.testPicker, "no choices on the second press")
         touch(MotionEvent.ACTION_UP, b)
         assertTrue(keys.size > 5 && keys.all { it == Bar.Key.DELETE }, "$keys")
         // a quick double tap is just two deletes
@@ -909,10 +864,10 @@ class DockViewTest {
         idle(1_000)
         tap(DockView.Act.BACKSPACE); idle(80); tap(DockView.Act.BACKSPACE)
         assertEquals(2, keys.size)
-        // and too slow a second press is a fresh hold: tray again
+        // and too slow a second press is a fresh hold: its choices
         idle(1_000)
         touch(MotionEvent.ACTION_DOWN, b); idle(400)
-        assertEquals("TRAY", dock.testAlt)
+        assertTrue(dock.testPicker)
         touch(MotionEvent.ACTION_UP, b)
     }
 

@@ -36,9 +36,9 @@ class RenderEqualBarTest {
     @Test fun innerLandscape() = render("3-inner-landscape")
 
     private fun render(screen: String) {
-        for (layout in listOf(Prefs.BAR_LAYOUT_PILLS, Prefs.BAR_LAYOUT_EQUAL)) {
+        for (layout in listOf("equal")) {
             val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-            Prefs.get(activity).edit { clear(); putString(Prefs.BAR_LAYOUT, layout) }
+            Prefs.get(activity).edit { clear() }
             val dock = DockView(activity, null)
             dock.listener = object : Bar.Listener {
                 override fun onKey(key: Bar.Key, repeat: Boolean) {}

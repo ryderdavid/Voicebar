@@ -30,14 +30,14 @@ import kotlin.test.Test
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class RenderRecordLayoutTest {
     @Config(qualifiers = "w454dp-h717dp-port-440dpi")
-    @Test fun light() { render("light", Prefs.BAR_LAYOUT_PILLS); render("light", Prefs.BAR_LAYOUT_EQUAL) }
+    @Test fun light() = render("light")
 
     @Config(qualifiers = "w454dp-h717dp-port-night-440dpi")
-    @Test fun dark() { render("dark", Prefs.BAR_LAYOUT_PILLS); render("dark", Prefs.BAR_LAYOUT_EQUAL) }
+    @Test fun dark() = render("dark")
 
-    private fun render(mode: String, layout: String) {
+    private fun render(mode: String) {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        Prefs.get(activity).edit { clear(); putString(Prefs.BAR_LAYOUT, layout) }
+        Prefs.get(activity).edit { clear() }
         val dock = DockView(activity, null)
         dock.listener = object : Bar.Listener {
             override fun onKey(key: Bar.Key, repeat: Boolean) {}
@@ -63,7 +63,7 @@ class RenderRecordLayoutTest {
         relayout()
         val night = mode == "dark"
         val out = File("build/previews/layout").apply { mkdirs() }
-        val short = if (layout == Prefs.BAR_LAYOUT_EQUAL) "seven" else "three"
+        val short = "seven"
         fun shot(name: String, settle: Boolean = true) {
             if (settle) dock.settle()
             dock.measure(View.MeasureSpec.makeMeasureSpec(dock.width, View.MeasureSpec.EXACTLY), 0)
@@ -90,13 +90,6 @@ class RenderRecordLayoutTest {
         for (i in 0..14) { looper.idleFor(Duration.ofMillis(40)); dock.showLevel(levels[li++ % levels.size]); shot("morph-%02d".format(i), settle = false) }
         idle(4500); dock.heardSpeech(); idle(200)
         shot("2-recording")
-        // ⌫ held: the tray (three-button bar)
-        if (layout == Prefs.BAR_LAYOUT_PILLS) {
-            val b = dock.testItem(DockView.Act.BACKSPACE)!!
-            ev(MotionEvent.ACTION_DOWN, b.centerX(), b.centerY()); idle(700); dock.heardSpeech()
-            shot("3-tray")
-            ev(MotionEvent.ACTION_CANCEL, b.centerX(), b.centerY()); idle(300)
-        }
         dock.heardSpeech()
         tap(DockView.Act.MORE); relayout(); dock.heardSpeech()
         shot("4-menu")

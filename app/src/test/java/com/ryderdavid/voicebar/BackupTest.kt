@@ -19,7 +19,7 @@ class BackupTest {
     private val ctx = ApplicationProvider.getApplicationContext<Application>()
 
     @Test fun settingsDictionaryAndVoiceprintTravelButKeysDoNot() {
-        Prefs.get(ctx).edit { putBoolean(Prefs.AUTO_LISTEN, true); putInt(Prefs.SILENCE_TIMEOUT, 7); putFloat(Prefs.NEAR_LEVEL, 0.62f); putString(Prefs.BAR_LAYOUT, "equal") }
+        Prefs.get(ctx).edit { putBoolean(Prefs.AUTO_LISTEN, true); putInt(Prefs.SILENCE_TIMEOUT, 7); putFloat(Prefs.NEAR_LEVEL, 0.62f); putString(Prefs.BAR_KEY, "paste") }
         Secrets.put(ctx, Secrets.ANTHROPIC, "sk-ant-secret")
         File(ctx.filesDir, "dictionary.json").writeText("""[{"term":"Siona","heard":["shauna"],"vocabulary":true,"count":3,"lastSeen":1,"learned":true}]""")
         File(ctx.filesDir, "voiceprint.bin").writeBytes(byteArrayOf(1, 2, 3, 4))
@@ -35,7 +35,7 @@ class BackupTest {
         assertTrue(Prefs.get(ctx).getBoolean(Prefs.AUTO_LISTEN, false))
         assertEquals(7, Prefs.get(ctx).getInt(Prefs.SILENCE_TIMEOUT, 0))
         assertEquals(0.62f, Prefs.get(ctx).getFloat(Prefs.NEAR_LEVEL, 0f))
-        assertEquals("equal", Prefs.get(ctx).getString(Prefs.BAR_LAYOUT, null))
+        assertEquals("paste", Prefs.get(ctx).getString(Prefs.BAR_KEY, null))
         assertEquals(1, s.words)
         assertTrue(Dictionary.of(ctx).all().any { it.term == "Siona" })
         assertTrue(s.voiceprint && File(ctx.filesDir, "voiceprint.bin").readBytes().contentEquals(byteArrayOf(1, 2, 3, 4)))

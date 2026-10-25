@@ -167,7 +167,6 @@ class RenderVideoTest {
         fun run() {
             Prefs.get(activity).edit {
                 clear()
-                putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL)
                 putString(Prefs.BAR_KEY, "paste")
                 putString(Prefs.BAR_KEY_RIGHT, "backspace")
             }

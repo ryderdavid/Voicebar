@@ -91,11 +91,6 @@ object Prefs {
     const val GBOARD_RETURN_MIC_KEY = "mic_key"
     const val GBOARD_RETURN_BUBBLE = "bubble"
     const val DEFAULT_GBOARD_RETURN = GBOARD_RETURN_BAR
-    /** The bar at rest: "pills" (⋮ · Cursor ABC Voice · ⌫) or "equal" (⋮ space Cursor ABC Voice ⌫ ↵, all one size). */
-    const val BAR_LAYOUT = "bar_layout"
-    const val BAR_LAYOUT_PILLS = "pills"
-    const val BAR_LAYOUT_EQUAL = "equal"
-    const val DEFAULT_BAR_LAYOUT = BAR_LAYOUT_PILLS
     /** What a tap on ABC does: "keys" (Voicebar's keyboard; hold for Gboard) or "gboard" (Gboard; hold for Voicebar's keyboard). */
     const val ABC_TAP = "abc_tap"
     const val ABC_TAP_KEYS = "keys"

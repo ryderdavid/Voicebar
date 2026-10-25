@@ -79,7 +79,7 @@ class RenderSettingsTest {
     @Config(qualifiers = "w454dp-h900dp-port-440dpi")
     @Test fun millennialEverywhere() = renderPage("millennial-everywhere", Page.LANGUAGE) { putBoolean(Prefs.MILLENNIAL_IN_SEARCH, true); putBoolean(Prefs.MILLENNIAL_IN_ALL, true) }
 
-    private fun renderLook(name: String) = renderPage(name, Page.LOOK) { putString(Prefs.BAR_LAYOUT, Prefs.BAR_LAYOUT_EQUAL) }
+    private fun renderLook(name: String) = renderPage(name, Page.LOOK) { }
 
     private fun renderPage(name: String, page: Page, prefs: android.content.SharedPreferences.Editor.() -> Unit) {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()

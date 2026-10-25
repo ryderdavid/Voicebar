@@ -318,7 +318,7 @@ private fun LazyListScope.welcome() {
         Surface(shape = RoundedCornerShape(28.dp), color = rowColor(), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { ctx -> DockView(ctx, null).apply { showAsPreview(Prefs.DEFAULT_BAR_LAYOUT) } },
+                    factory = { ctx -> DockView(ctx, null).apply { showAsPreview() } },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

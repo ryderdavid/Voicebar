@@ -374,11 +374,10 @@ private fun HeroCard(onTry: () -> Unit) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.hero_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.hero_body), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
-            val layout = rememberPrefs().getString(Prefs.BAR_LAYOUT, Prefs.DEFAULT_BAR_LAYOUT) ?: Prefs.DEFAULT_BAR_LAYOUT
             Surface(shape = RoundedCornerShape(16.dp), color = cs.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
                 androidx.compose.ui.viewinterop.AndroidView(
-                    factory = { ctx -> DockView(ctx, null).apply { showAsPreview(layout) } },
-                    update = { it.showAsPreview(layout) },
+                    factory = { ctx -> DockView(ctx, null).apply { showAsPreview() } },
+                    update = { it.showAsPreview() },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -392,8 +391,6 @@ private fun HeroCard(onTry: () -> Unit) {
 @Composable
 private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
     val prefs = rememberPrefs()
-    var barLayout by remember { mutableStateOf(prefs.getString(Prefs.BAR_LAYOUT, Prefs.DEFAULT_BAR_LAYOUT) ?: Prefs.DEFAULT_BAR_LAYOUT) }
-    val setBarLayout = { v: String -> barLayout = v; prefs.edit { putString(Prefs.BAR_LAYOUT, v) } }
     var barKey by remember { mutableStateOf(prefs.getString(Prefs.BAR_KEY, Prefs.DEFAULT_BAR_KEY) ?: Prefs.DEFAULT_BAR_KEY) }
     var abcTap by remember { mutableStateOf(prefs.getString(Prefs.ABC_TAP, Prefs.DEFAULT_ABC_TAP) ?: Prefs.DEFAULT_ABC_TAP) }
     var swipe by remember { mutableStateOf(prefs.getBoolean(Prefs.SWIPE_TYPING, Prefs.DEFAULT_SWIPE_TYPING)) }
@@ -409,25 +406,15 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
     val setGboardReturn = { v: String -> gboardReturn = v; prefs.edit { putString(Prefs.GBOARD_RETURN, v) } }
     val context = LocalContext.current
     SettingsPage(stringResource(R.string.page_look), onBack) {
-        group(R.string.bar_layout, listOf(
-            {
-                BarLayoutOption(stringResource(R.string.bar_layout_pills), stringResource(R.string.bar_layout_pills_summary),
-                    Prefs.BAR_LAYOUT_PILLS, barLayout != Prefs.BAR_LAYOUT_EQUAL) { setBarLayout(Prefs.BAR_LAYOUT_PILLS) }
-            },
-            {
-                BarLayoutOption(stringResource(R.string.bar_layout_equal), stringResource(R.string.bar_layout_equal_summary),
-                    Prefs.BAR_LAYOUT_EQUAL, barLayout == Prefs.BAR_LAYOUT_EQUAL) { setBarLayout(Prefs.BAR_LAYOUT_EQUAL) }
-            },
-        ))
-        // the seven-button bar's four own keys, either side of Cursor · ABC · Voice: each can be anything
-        if (barLayout == Prefs.BAR_LAYOUT_EQUAL) {
+        // the bar's four own keys, either side of Cursor · ABC · Voice: each can be anything
+        run {
             group(R.string.bar_key_group, listOf<@Composable () -> Unit>(
                 {
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         androidx.compose.ui.viewinterop.AndroidView(
-                            factory = { ctx -> DockView(ctx, null).apply { showAsPreview(Prefs.BAR_LAYOUT_EQUAL, key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter) } },
-                            update = { it.showAsPreview(Prefs.BAR_LAYOUT_EQUAL, key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter) },
+                            factory = { ctx -> DockView(ctx, null).apply { showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter) } },
+                            update = { it.showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -481,25 +468,6 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
     }
 }
 
-@Composable
-private fun BarLayoutOption(title: String, summary: String, layout: String, selected: Boolean, onSelect: () -> Unit) {
-    Column {
-        StyleRow(title, summary, selected, onSelect)
-        // the real bar, drawn by the keyboard's own view, at rest in this layout
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            onClick = onSelect,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-        ) {
-            androidx.compose.ui.viewinterop.AndroidView(
-                factory = { ctx -> DockView(ctx, null).apply { showAsPreview(layout) } },
-                update = { it.showAsPreview(layout) },
-                modifier = Modifier.fillMaxWidth(), // the view measures itself to the bar's height
-            )
-        }
-    }
-}
 
 /** What the seven-button bar's own keys can be, with their names and descriptions. */
 /** One of the seven-button bar's own keys: what it is now, and a dropdown of everything it can be. */
