@@ -146,13 +146,19 @@ class DockViewTest {
     @Test fun floatingIsASmallPillOfMenuCursorAbcVoiceAndOneOwnKey() {
         val docked = assertNotNull(dock.testItem(DockView.Act.MIC))
         floating()
-        assertEquals((52 * d).toInt(), dock.height, "the same height as the docked bar")
-        val order = listOf(DockView.Act.MORE, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.ENTER)
+        assertEquals(activity.resources.displayMetrics.heightPixels, dock.height, "the whole screen, see-through: it can be moved anywhere")
+        val (content, touch) = assertNotNull(dock.floatingInsets())
+        val order = listOf(DockView.Act.GRIP, DockView.Act.MORE, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.ENTER)
         val rects = order.map { assertNotNull(dock.testItem(it), "$it") }
-        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.right < b.left, "☰ · Cursor · ABC · Voice · own key") }
-        rects.forEach { assertEquals(docked.width(), it.width(), 0.5f, "the docked keys' size") }
+        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.right < b.left, "⠿ · ☰ · Cursor · ABC · Voice · own key") }
+        rects.drop(1).forEach { assertEquals(docked.width(), it.width(), 0.5f, "the docked keys' size") }
+        assertEquals(docked.height(), rects[1].height(), 0.5f)
+        // parked at the bottom: the app sits above it, and only the pill takes touches
+        assertEquals(1, touch.size)
+        assertTrue(touch[0].contains(rects[3].centerX(), rects[3].centerY()) && content < touch[0].top && content > touch[0].top - 10 * d)
+        assertTrue(touch[0].bottom <= dock.height && rects[3].bottom > dock.height - 60 * d, "at the bottom")
         assertFalse(dock.testHas(DockView.Act.SPACE_ALT) || dock.testHas(DockView.Act.BACKSPACE), "just the one own key")
-        assertTrue(abs(rects[2].centerX() - dock.width / 2f) < 2 * d, "in the middle")
+        assertTrue(abs((rects[0].left + rects.last().right) / 2 - dock.width / 2f) < 8 * d, "in the middle")
         tap(DockView.Act.ENTER)
         assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys, "the own key starts as Backspace")
         // dictating works the same, inside the pill
@@ -172,16 +178,52 @@ class DockViewTest {
         for (a in listOf(DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.ENTER)) assertFalse(dock.testHas(a), "$a is gone")
         val pill = assertNotNull(dock.testCollapsedPill())
         assertEquals(52 * d, pill.height(), 1f, "the bar's height")
-        assertTrue(pill.width() < 140 * d, "just ☰ and Voice: ${pill.width() / d} dp")
+        assertTrue(pill.width() < 170 * d, "just the grip, ☰ and Voice: ${pill.width() / d} dp")
         assertEquals(activity.resources.displayMetrics.heightPixels, dock.height, "the whole screen, see-through, so it can go anywhere")
         assertTrue(pill.contains(at(DockView.Act.MIC).x, at(DockView.Act.MIC).y) && pill.contains(at(DockView.Act.MORE).x, at(DockView.Act.MORE).y))
+        assertTrue(dock.testHas(DockView.Act.GRIP))
         tap(DockView.Act.MORE); relayout()
         assertTrue(dock.testMenu)
         assertEquals(DockView.MenuItem.EXPAND, dock.testMenuItems().first { it == DockView.MenuItem.EXPAND })
         menu(DockView.MenuItem.EXPAND)
         assertFalse(dock.testCollapsed)
         assertTrue(dock.testHas(DockView.Act.ENTER) && dock.testHas(DockView.Act.MORE))
-        assertEquals((52 * d).toInt(), dock.height)
+    }
+
+    @Test fun theOpenFloatingPillDragsByItsGripAndParksAtTheBottomAgain() {
+        floating()
+        val grip = at(DockView.Act.GRIP)
+        val before = assertNotNull(dock.testItem(DockView.Act.MIC))
+        touch(MotionEvent.ACTION_DOWN, grip)
+        touch(MotionEvent.ACTION_MOVE, PointF(grip.x + 10 * d, grip.y - 300 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(grip.x + 20 * d, grip.y - 500 * d))
+        touch(MotionEvent.ACTION_UP, PointF(grip.x + 20 * d, grip.y - 500 * d)); idle(20)
+        relayout()
+        val after = assertNotNull(dock.testItem(DockView.Act.MIC))
+        assertEquals(before.centerY() - 500 * d, after.centerY(), 3 * d, "moved up with the finger")
+        assertEquals(before.centerX() + 20 * d, after.centerX(), 3 * d, "sideways too, as far as the screen allows")
+        assertFalse(Prefs.get(activity).getBoolean(Prefs.FLOAT_PARKED, true), "floating over the app now")
+        val (content, touch) = assertNotNull(dock.floatingInsets())
+        assertEquals(dock.height, content, "the app keeps the whole screen")
+        assertTrue(touch.single().contains(after.centerX(), after.centerY()))
+        assertEquals(emptyList(), talk, "a drag isn't a tap")
+        // the keys still work up there
+        tap(DockView.Act.MIC)
+        assertEquals(listOf("start"), talk)
+        tap(DockView.Act.MIC); idle(600); relayout()
+        // dropped near the bottom: parked again
+        val g2 = at(DockView.Act.GRIP)
+        touch(MotionEvent.ACTION_DOWN, g2)
+        touch(MotionEvent.ACTION_MOVE, PointF(g2.x, g2.y + 300 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(g2.x, g2.y + 480 * d))
+        touch(MotionEvent.ACTION_UP, PointF(g2.x, g2.y + 480 * d)); idle(20)
+        relayout()
+        assertTrue(Prefs.get(activity).getBoolean(Prefs.FLOAT_PARKED, false))
+        val (c2, t2) = assertNotNull(dock.floatingInsets())
+        assertTrue(c2 < t2.single().top, "the app above it again")
+        // a tap on a key isn't a drag
+        tap(DockView.Act.ENTER)
+        assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys)
     }
 
     @Test fun theCollapsedPillDragsAnywhereStaysOnScreenAndIsRemembered() {

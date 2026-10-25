@@ -98,6 +98,11 @@ object Prefs {
     const val DEFAULT_BAR_STYLE = BAR_STYLE_DOCKED
     /** The floating bar is collapsed to its record pill. */
     const val BAR_COLLAPSED = "bar_collapsed"
+    /** Where the open floating pill was left (its center, as fractions, like [PILL_X]), unless it's parked at the bottom. */
+    const val FLOAT_X = "float_x"
+    const val FLOAT_Y = "float_y"
+    /** The open floating pill sits at the bottom with the app above it (the default); dragged off, it floats over the app. */
+    const val FLOAT_PARKED = "float_parked"
     /** Where the collapsed pill was left: its center, as fractions of the screen's width and of the height above the navigation area. */
     const val PILL_X = "pill_x"
     const val PILL_Y = "pill_y"

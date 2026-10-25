@@ -1230,14 +1230,16 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
         val v = bar as? DockView ?: return
-        // collapsed: the app keeps the whole screen, and only the pill takes touches
-        v.collapsedPill()?.takeIf { v.isShown }?.let { r ->
-            val h = window.window?.decorView?.height ?: return
-            outInsets.contentTopInsets = h
-            outInsets.visibleTopInsets = h
-            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+        // floating: the app keeps the whole screen (or, the pill parked at the bottom, everything above it),
+        // and only the pill and what's open from it take touches
+        v.floatingInsets()?.takeIf { v.isShown }?.let { (content, rects) ->
             val loc = IntArray(2).also { v.getLocationInWindow(it) }
-            outInsets.touchableRegion.set(r.left.toInt() + loc[0], r.top.toInt() + loc[1], r.right.toInt() + loc[0], r.bottom.toInt() + loc[1])
+            outInsets.contentTopInsets = content + loc[1]
+            outInsets.visibleTopInsets = content + loc[1]
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+            outInsets.touchableRegion.setEmpty()
+            for (r in rects) outInsets.touchableRegion.op(android.graphics.Rect(r.left.toInt() + loc[0], r.top.toInt() + loc[1], r.right.toInt() + loc[0], r.bottom.toInt() + loc[1]),
+                android.graphics.Region.Op.UNION)
             return
         }
         val room = v.floatRoom()

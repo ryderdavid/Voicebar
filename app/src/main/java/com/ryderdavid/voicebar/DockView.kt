@@ -53,6 +53,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         /** While dictating: throw the dictation away and paste the clipboard instead. */
         TALK_PASTE,
         PANEL,
+        /** The floating pill's grip (⠿): drag it to move the pill. */
+        GRIP,
         /** The clipboard-history row in the ⋮ menu (scrolls sideways). */
         CLIP_ROW,
         /** Clipboard · Dictations, above that row. */
@@ -276,6 +278,10 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     /** The collapsed pill's center: fractions of the width and of the height above the navigation area. */
     private var pillFx = DEFAULT_PILL_FX
     private var pillFy = DEFAULT_PILL_FY
+    /** The open floating pill: where it was dragged (center fractions), unless it's parked at the bottom. */
+    private var floatFx = 0.5f
+    private var floatFy = 1f
+    private var parked = true
     private var previewStyle: String? = null
 
     fun showAsPreview(colors: String? = null, key: String? = null, rightKey: String? = null,
@@ -302,6 +308,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         collapsed = floating && !preview && prefs.getBoolean(Prefs.BAR_COLLAPSED, false)
         pillFx = prefs.getFloat(Prefs.PILL_X, DEFAULT_PILL_FX).coerceIn(0f, 1f)
         pillFy = prefs.getFloat(Prefs.PILL_Y, DEFAULT_PILL_FY).coerceIn(0f, 1f)
+        floatFx = prefs.getFloat(Prefs.FLOAT_X, 0.5f).coerceIn(0f, 1f)
+        floatFy = prefs.getFloat(Prefs.FLOAT_Y, 1f).coerceIn(0f, 1f)
+        parked = prefs.getBoolean(Prefs.FLOAT_PARKED, true)
         own.clear()
         for ((act, slot) in ownSlots()) {
             val shown = if (floating) previewFloatKey else previewKeys[act]
@@ -373,7 +382,20 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private var roomFor = Drawer.NONE
     /** The drawer's room stays while a closing panel shrinks back into its pill. */
     private var drawerRoom = false
-    private val barTop get() = height - bottomInset - barH
+    private val barTop get() = if (freeFloat) floatTop() else height - bottomInset - barH
+
+    /**
+     * The open floating pill's top, in view coordinates: parked at the bottom (the app above it), or
+     * wherever it was dragged; low enough for an open panel to fit above it.
+     */
+    private fun floatTop(): Float {
+        val areaH = (height - bottomInset).toFloat()
+        val bottom = areaH - barH
+        val m = dp(FLOAT_MARGIN_DP)
+        var t = if (parked) bottom else (floatFy * areaH - barH / 2).coerceIn(m, bottom)
+        if (drawer != Drawer.NONE || drawerRoom) t = max(t, drawerPx + m).coerceAtMost(bottom)
+        return t
+    }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         updateInset(WindowInsetsCompat.toWindowInsetsCompat(insets, this))
@@ -459,9 +481,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        if (collapsed) {
+        if (collapsed || freeFloat) {
             // the whole screen, see-through: the pill can be anywhere, and the service passes every touch
-            // but the pill's to the app
+            // but the pill's (and its panels') to the app
             val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) resources.displayMetrics.heightPixels
                 else MeasureSpec.getSize(heightMeasureSpec)
             setMeasuredDimension(w, h)
@@ -688,6 +710,30 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     /** The floating bar, open: its keys sit in a pill (not while the keyboard, which opens full width, is up). */
     private val inPill get() = floating && !collapsed && drawer != Drawer.KEYS
+    /** The open floating pill on the keyboard (not a settings preview): it can be anywhere on the screen. */
+    private val freeFloat get() = inPill && !preview
+
+    /**
+     * Floating (not while the keyboard, which docks, is up): where the app's content ends, in view
+     * coordinates (the view's height when the app keeps the whole screen), and what takes touches.
+     * Null when docked.
+     */
+    fun floatingInsets(): Pair<Int, List<RectF>>? {
+        if (preview || !(collapsed || freeFloat) || width <= 0) return null
+        layoutAll()
+        val touch = ArrayList<RectF>()
+        if (collapsed) collapsedPill()?.let { touch += it }
+        else {
+            touch += pillRect().apply { offset(0f, barTop) }
+            for (id in listOf("padPanel", "menuPanel")) items.firstOrNull { it.id == id && it.alpha > 0f }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
+        }
+        if (menuList) touch += menuBox().apply { offset(0f, barTop) }
+        if (picker) pickerBox()?.let { touch += it.apply { offset(0f, barTop) } }
+        if (!collapsed) tipRect()?.let { touch += it }
+        // parked at the bottom, the app sits above the pill (the strip just above it is see-through, for its edge)
+        val content = if (!collapsed && parked) (barTop - dp(FLOAT_EDGE_DP)).toInt() else height
+        return content to touch
+    }
 
     /** Where the floating pill is across the bar, and how wide: five keys the size of the docked bar's seven. */
     private fun pillSpan(): Pair<Float, Float> {
@@ -695,8 +741,12 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val pad = dp(6f)
         val gap = dp(5f)
         val ew = (w - 2 * pad - 6 * gap) / 7
-        val pw = 5 * ew + 4 * gap + 2 * pad
-        return x0 + (w - pw) / 2 to pw
+        val pw = dp(GRIP_DP) + gap + 5 * ew + 4 * gap + 2 * pad
+        if (!freeFloat) return x0 + (w - pw) / 2 to pw
+        // where it was dragged, kept on screen
+        val m = dp(FLOAT_MARGIN_DP)
+        val cx = (floatFx * width).coerceIn(m + pw / 2, width - m - pw / 2)
+        return cx - pw / 2 to pw
     }
 
     /** The floating pill's outline, in bar coordinates. */
@@ -717,7 +767,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val w = width.toFloat()
         val areaH = (height - bottomInset).toFloat()
         val ph = b + 2 * pad
-        val small = pad + b + gap + dp(COLLAPSED_MIC_DP) + pad
+        val grip = dp(GRIP_DP)
+        val small = pad + grip + gap + b + gap + dp(COLLAPSED_MIC_DP) + pad
         val wide = talking || voice != Bar.Voice.OFF || commandSaid != null
         val pw = if (wide) min(w - 2 * m, dp(COLLAPSED_WIDE_DP)) else small
         val cx = (pillFx * w).coerceIn(m + small / 2, w - m - small / 2)
@@ -726,11 +777,13 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         left = left.coerceIn(m, w - m - pw)
         val y = top - barTop + pad
         if (wide) {
+            items.add(Item("grip", Act.GRIP, rect(left + pad, y, grip, b), 0f))
             items.add(Item("more", Act.MORE, rect(left + pad, y, b, b), 0f))
             items.add(Item("voice", Act.MIC, rect(left + pad, y, pw - 2 * pad, b)))
         } else {
-            items.add(Item("more", Act.MORE, rect(left + pad, y, b, b)))
-            items.add(Item("voice", Act.MIC, rect(left + pad + b + gap, y, dp(COLLAPSED_MIC_DP), b)))
+            items.add(Item("grip", Act.GRIP, rect(left + pad, y, grip, b)))
+            items.add(Item("more", Act.MORE, rect(left + pad + grip + gap, y, b, b)))
+            items.add(Item("voice", Act.MIC, rect(left + pad + grip + gap + b + gap, y, dp(COLLAPSED_MIC_DP), b)))
         }
     }
 
@@ -738,7 +791,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     fun collapsedPill(): RectF? {
         if (!collapsed || width <= 0) return null
         layoutAll()
-        val r = items.filter { it.act == Act.MIC || it.act == Act.MORE }.map { it.rect }.reduceOrNull { a, c -> RectF(a).apply { union(c) } } ?: return null
+        val r = items.filter { (it.act == Act.MIC || it.act == Act.MORE || it.act == Act.GRIP) && it.alpha > 0f }.map { it.rect }.reduceOrNull { a, c -> RectF(a).apply { union(c) } } ?: return null
         val pad = dp(6f)
         return RectF(r.left - pad, r.top - pad + barTop, r.right + pad, r.bottom + pad + barTop)
     }
@@ -768,8 +821,11 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         // docked: seven equal keys, ☰ · own key · Cursor ABC Voice · own key · own key; floating: five,
         // ☰ · Cursor ABC Voice · own key (the own key in ↵'s slot, so it stays put while dictating)
         val n = if (inPill) 5 else 7
-        val ew = (w - 2 * pad - (n - 1) * gap) / n
-        fun slot(i: Int) = rect(pad + i * (ew + gap), y, ew, b)
+        // floating, the grip (⠿) comes first: drag it to move the pill
+        val g = if (inPill) dp(GRIP_DP) + gap else 0f
+        if (inPill && !(drawer == Drawer.KEYS && !talking)) items.add(Item("grip", Act.GRIP, rect(pad, y, dp(GRIP_DP), b)))
+        val ew = (w - 2 * pad - g - (n - 1) * gap) / n
+        fun slot(i: Int) = rect(pad + g + i * (ew + gap), y, ew, b)
         val c0 = if (inPill) 1 else 2 // where Cursor sits
         val more = slot(0)
         val cursorPill = slot(c0)
@@ -1199,8 +1255,11 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val key = anims[id]?.rect ?: rectOf(id) ?: return null
         val w = min(dp(PICKER_W_DP), width - 2 * dp(8f))
         val left = (if (right) key.right - w else key.left).coerceIn(dp(8f), width - w - dp(8f))
+        val h = Bar.ExtraKey.entries.size * pickerRowH + 2 * pickerPad
         val bottom = -dp(PICKER_GAP_DP)
-        return RectF(left, bottom - (Bar.ExtraKey.entries.size * pickerRowH + 2 * pickerPad), left + w, bottom)
+        // the floating pill near the top: below it instead
+        if (freeFloat && barTop + bottom - h < dp(8f)) return RectF(left, barH + dp(PICKER_GAP_DP), left + w, barH + dp(PICKER_GAP_DP) + h)
+        return RectF(left, bottom - h, left + w, bottom)
     }
 
     /** Row [i] of the column, counted up from the bottom. */
@@ -1338,7 +1397,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val h = menuHeight()
         val left = menuAnchor.left.coerceIn(dp(8f), width - w - dp(8f))
         val above = menuAnchor.top - dp(PICKER_GAP_DP) - h
-        val top = if (collapsed && above < -barTop + dp(8f)) menuAnchor.bottom + dp(PICKER_GAP_DP) else above
+        val top = if ((collapsed || freeFloat) && above < -barTop + dp(8f)) menuAnchor.bottom + dp(PICKER_GAP_DP) else above
         return RectF(left, top, left + w, top + h)
     }
 
@@ -1879,6 +1938,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private var dragging = false
     private var dragFromX = 0f
     private var dragFromY = 0f
+    /** Where the drag began, in view coordinates (the open pill moves its own bar coordinates as it goes). */
+    private var dragDownY = 0f
     private var downX = 0f
     private var downY = 0f
     private var sliding = false
@@ -1945,7 +2006,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (it == null) return
         dragging = false
         // a drag starts from where the pill is drawn (kept on screen), not where it was asked to be
+        dragDownY = y + barTop
         if (collapsed) collapsedPill()?.let { dragFromX = it.centerX(); dragFromY = it.centerY() }
+        else if (freeFloat) pillRect().let { dragFromX = it.centerX(); dragFromY = it.centerY() + barTop }
         when (it.act) {
             Act.PAD -> { padDown(x, y); return }
             Act.KEYBOARD -> postDelayed(abcHoldRunnable, ABC_HOLD_MS)
@@ -2030,16 +2093,23 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private fun onMove(x: Float, y: Float) {
         val p = pressed ?: return
         if (picker) { pickerHover(x, y); return }
-        // the collapsed pill at rest follows a finger that moves off it; a press that stays put is a tap
-        if (collapsed && !talking && voice == Bar.Voice.OFF && (p.act == Act.MIC || p.act == Act.MORE)) {
-            if (!dragging && hypot(x - downX, y - downY) > dp(DRAG_SLOP_DP)) {
+        // the collapsed pill at rest follows a finger that moves off it (a press that stays put is a tap);
+        // the open floating pill follows its grip
+        val drags = (collapsed && !talking && voice == Bar.Voice.OFF && (p.act == Act.MIC || p.act == Act.MORE || p.act == Act.GRIP)) ||
+            (freeFloat && p.act == Act.GRIP && drawer == Drawer.NONE)
+        if (drags) {
+            val vy = y + barTop // in view coordinates, before the pill moves
+            if (!dragging && hypot(x - downX, vy - dragDownY) > dp(DRAG_SLOP_DP)) {
                 dragging = true
                 consumed = true
                 removeCallbacks(micHoldRunnable)
+                closeMenu()
+                if (!collapsed) parked = false
             }
             if (dragging) {
-                pillFx = ((dragFromX + x - downX) / width).coerceIn(0f, 1f)
-                pillFy = ((dragFromY + y - downY) / max(1, height - bottomInset)).coerceIn(0f, 1f)
+                val fx = ((dragFromX + x - downX) / width).coerceIn(0f, 1f)
+                val fy = ((dragFromY + vy - dragDownY) / max(1, height - bottomInset)).coerceIn(0f, 1f)
+                if (collapsed) { pillFx = fx; pillFy = fy } else { floatFx = fx; floatFy = fy }
                 settle()
                 invalidate()
             }
@@ -2098,11 +2168,22 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (dragging) {
             // dropped: kept on screen (as it's drawn), remembered, and the touchable region follows
             dragging = false
-            collapsedPill()?.let { r ->
-                pillFx = (r.centerX() / width).coerceIn(0f, 1f)
-                pillFy = (r.centerY() / max(1, height - bottomInset)).coerceIn(0f, 1f)
+            val areaH = max(1, height - bottomInset)
+            if (collapsed) {
+                collapsedPill()?.let { r ->
+                    pillFx = (r.centerX() / width).coerceIn(0f, 1f)
+                    pillFy = (r.centerY() / areaH).coerceIn(0f, 1f)
+                }
+                if (!preview) Prefs.get(context).edit().putFloat(Prefs.PILL_X, pillFx).putFloat(Prefs.PILL_Y, pillFy).apply()
+            } else {
+                // dropped near the bottom: parked there again, the app above it
+                val r = pillRect().apply { offset(0f, barTop) }
+                floatFx = (r.centerX() / width).coerceIn(0f, 1f)
+                floatFy = (r.centerY() / areaH).coerceIn(0f, 1f)
+                if (r.bottom > areaH - dp(PARK_DP)) { parked = true; performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+                if (!preview) Prefs.get(context).edit().putFloat(Prefs.FLOAT_X, floatFx).putFloat(Prefs.FLOAT_Y, floatFy).putBoolean(Prefs.FLOAT_PARKED, parked).apply()
+                settle()
             }
-            if (!preview) Prefs.get(context).edit().putFloat(Prefs.PILL_X, pillFx).putFloat(Prefs.PILL_Y, pillFy).apply()
             requestLayout()
             invalidate()
             return
@@ -2165,7 +2246,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             // the equal layout's own key (in the ⌫ tray, space is handled on release instead); mid-dictation
             // it acts at the cursor like any key, so a paste there keeps what's been said
             Act.SPACE_ALT -> pressExtra(keyOf(Act.SPACE_ALT) ?: Bar.ExtraKey.SPACE)
-            Act.PAD, Act.PANEL, Act.CLEAR_ALL, Act.CLIP_ROW, Act.CLIP_TABS -> Unit
+            Act.PAD, Act.PANEL, Act.CLEAR_ALL, Act.CLIP_ROW, Act.CLIP_TABS, Act.GRIP -> Unit
         }
     }
 
@@ -2199,7 +2280,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val moving = step(now)
         when {
             // collapsed: nothing but the record pill, which follows its keys as they grow and shrink
-            collapsed -> listOfNotNull(anims["voice"], anims["more"]?.takeIf { it.v[5] > 0.05f }).map { it.rect }
+            collapsed -> listOfNotNull(anims["voice"], anims["more"]?.takeIf { it.v[5] > 0.05f }, anims["grip"]?.takeIf { it.v[5] > 0.05f }).map { it.rect }
                 .reduceOrNull { a, c -> RectF(a).apply { union(c) } }?.let { drawPillSurface(canvas, RectF(it).apply { inset(-dp(6f), -dp(6f)); offset(0f, barTop) }) }
             // floating: the bar's own surface, as a pill clear of the edges; the panels draw their own
             inPill -> drawPillSurface(canvas, pillRect().apply { offset(0f, barTop) })
@@ -2296,14 +2377,26 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         canvas.restore()
     }
 
-    /** The floating bar's (or collapsed pill's) surface: the bar's color, a hairline round it. */
+    /**
+     * The floating bar's (or collapsed pill's) surface: a soft Material shadow under it (elevation 2:
+     * faint layers, widening and a little lower), the bar's color, and a hairline drawn just inside
+     * its edge so nothing clips it.
+     */
     private fun drawPillSurface(canvas: Canvas, r: RectF) {
         val rr = r.height() / 2
+        val a = if (palette.dark) 14 else 7
+        for (i in 1..6) {
+            val g = i * dp(0.7f)
+            val dy = dp(1f) + i * dp(0.35f)
+            fill.color = Color.argb(a, 0, 0, 0)
+            canvas.drawRoundRect(r.left - g, r.top - g + dy, r.right + g, r.bottom + g + dy, rr + g, rr + g, fill)
+        }
         fill.color = palette.disc
         canvas.drawRoundRect(r, rr, rr, fill)
+        val sw = max(1f, dp(1f))
         stroke.color = palette.outline
-        stroke.strokeWidth = max(1f, dp(1f))
-        canvas.drawRoundRect(r, rr, rr, stroke)
+        stroke.strokeWidth = sw
+        canvas.drawRoundRect(r.left + sw / 2, r.top + sw / 2, r.right - sw / 2, r.bottom - sw / 2, rr - sw / 2, rr - sw / 2, stroke)
     }
 
     private fun drawRound(canvas: Canvas, act: Act, r: RectF, corner: Float, al: Float, down: Boolean) {
@@ -3038,6 +3131,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Act.CURSOR -> Icons.draw(canvas, Icons.Glyph.TEXT_CURSOR, x, y, size, fill)
             Act.DISCARD -> Icons.draw(canvas, Icons.Glyph.DISCARD, x, y, size, fill)
             Act.KEYBOARD -> drawKeyboard(canvas, x, y, size, c)
+            // ⠿: two columns of three dots
+            Act.GRIP -> for (cx in listOf(-1, 1)) for (cy in -1..1) canvas.drawCircle(x + cx * size * 0.14f, y + cy * size * 0.24f, size * 0.075f, fill)
             // ☰: the menu
             Act.MORE -> { stroke.color = c; stroke.strokeWidth = size * 0.085f; for (i in -1..1) canvas.drawLine(x - size * 0.3f, y + i * size * 0.24f, x + size * 0.3f, y + i * size * 0.24f, stroke) }
             Act.FINISH -> strokePath(canvas, x, y, size, c) { m, l -> m(5f, 12.5f); l(9.5f, 17f); l(19f, 7.5f) }
@@ -3134,6 +3229,12 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         /** Where the collapsed pill starts: on the right, above where most apps put their message box and Send. */
         const val DEFAULT_PILL_FX = 0.82f
         const val DEFAULT_PILL_FY = 0.74f
+        /** The pills' grip (⠿). */
+        const val GRIP_DP = 18f
+        /** The see-through strip above the parked pill, for its edge and shadow. */
+        const val FLOAT_EDGE_DP = 6f
+        /** The open pill dropped this close to the bottom parks there. */
+        const val PARK_DP = 64f
         /** A press on the collapsed pill that moves this far is a drag, not a tap. */
         const val DRAG_SLOP_DP = 10f
         /** Wider than this, the buttons can keep to one side; and how wide they are then. */

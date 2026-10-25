@@ -82,7 +82,7 @@ class RenderFloatingTest {
                 val p = Paint(Paint.ANTI_ALIAS_FLAG)
                 val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 15 * d; color = if (night) 0xFFE2E2E9.toInt() else 0xFF191C20.toInt() }
                 // the app's own layout ends where the keyboard's content starts (all of it, collapsed)
-                val appBottom = if (dock.testCollapsed) h.toFloat() else (h - dock.height + dock.floatRoom()).toFloat()
+                val appBottom = dock.floatingInsets()?.first?.let { (h - dock.height + it).toFloat() } ?: (h - dock.height + dock.floatRoom()).toFloat()
                 p.color = if (night) 0xFF1D2024.toInt() else 0xFFEDEDF4.toInt()
                 c.drawRect(0f, 0f, w.toFloat(), 64 * d, p)
                 c.drawText("Jamie", 20 * d, 40 * d, text)
