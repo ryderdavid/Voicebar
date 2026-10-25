@@ -131,6 +131,11 @@
     <string name="abc_tap_keys_summary">A full keyboard with suggestions pops up and takes over the bar\'s row; pull its handle down to bring the bar back. Hold ABC for Gboard.</string>
     <string name="abc_tap_gboard">Tap for Gboard</string>
     <string name="abc_tap_gboard_summary">Gboard takes over for typing. Hold ABC for Voicebar\'s keyboard.</string>
+    <string name="bar_style">Bar style</string>
+    <string name="bar_style_docked">Docked</string>
+    <string name="bar_style_docked_summary">Across the bottom of the screen</string>
+    <string name="bar_style_floating">Floating</string>
+    <string name="bar_style_floating_summary">A pill clear of the edges, with a key at the far right that shrinks it to just the record button. Drag that anywhere; tap its arrow to open the bar again</string>
     <string name="bar_key_group">The bar\'s own keys</string>
     <string name="bar_key_slot_menu">Far left</string>
     <string name="bar_key_slot_left">Left of Cursor</string>

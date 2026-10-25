@@ -241,7 +241,7 @@ section{position:relative}
 /* tabs showcase */
 .show{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:clamp(32px,5vw,72px);align-items:center}
 .tabs{display:inline-flex;flex-wrap:wrap;border:1px solid var(--md-outline);border-radius:999px;overflow:hidden;margin-bottom:32px}
-.tabs button{border:0;background:none;color:var(--md-on-surface);font:500 15px/1 var(--font);height:44px;padding:0 18px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;border-right:1px solid var(--md-outline);transition:background-color .2s}
+.tabs button{border:0;background:none;color:var(--md-on-surface);font:500 14px/1 var(--font);height:44px;padding:0 13px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;border-right:1px solid var(--md-outline);transition:background-color .2s}
 .tabs button:last-child{border-right:0}
 .tabs button .sym{font-size:18px;width:0;opacity:0;transition:width .25s var(--ease),opacity .2s}
 .tabs button[aria-selected="true"]{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
@@ -255,7 +255,7 @@ section{position:relative}
 .stage img{width:100%;max-width:440px;border-radius:var(--r-xl);box-shadow:0 1px 2px rgb(0 0 0/.08),0 16px 40px -16px rgb(0 0 0/.3);animation:pop .5s var(--ease-out)}
 @keyframes pop{from{opacity:0;scale:.97}}
 @media (max-width:900px){.show{grid-template-columns:1fr}.stage{min-height:0}}
-@media (max-width:520px){.tabs{display:grid;grid-template-columns:1fr 1fr;border-radius:var(--r-xl)}.tabs button{border-right:0;justify-content:center}.tabs button:nth-child(odd){border-right:1px solid var(--md-outline)}.tabs button:nth-child(-n+2){border-bottom:1px solid var(--md-outline)}}
+@media (max-width:1180px){.tabs{display:grid;grid-template-columns:1fr 1fr;border-radius:var(--r-xl)}.tabs button{border-right:0;justify-content:center}.tabs button:nth-child(odd){border-right:1px solid var(--md-outline)}.tabs button:nth-child(-n+4){border-bottom:1px solid var(--md-outline)}.tabs button:last-child{grid-column:span 2;border-right:0}}
 
 /* tour */
 .tour{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:clamp(32px,6vw,96px);align-items:center}
@@ -489,6 +489,7 @@ html.js .rise.in{opacity:1;translate:0}
           <button role="tab" id="t-cursor" aria-controls="p-cursor" aria-selected="false" tabindex="-1"><span class="sym" aria-hidden="true">check</span>Cursor</button>
           <button role="tab" id="t-own" aria-controls="p-own" aria-selected="false" tabindex="-1"><span class="sym" aria-hidden="true">check</span>Your keys</button>
           <button role="tab" id="t-menu" aria-controls="p-menu" aria-selected="false" tabindex="-1"><span class="sym" aria-hidden="true">check</span>Menu</button>
+          <button role="tab" id="t-float" aria-controls="p-float" aria-selected="false" tabindex="-1"><span class="sym" aria-hidden="true">check</span>Floating</button>
         </div>
         <div class="panel" role="tabpanel" id="p-keyboard" aria-labelledby="t-keyboard" data-img="keys" data-alt="Voicebar's keyboard with a swipe trail across the letters.">
           <h3>Its own keyboard, under your thumbs</h3>
@@ -508,7 +509,7 @@ html.js .rise.in{opacity:1;translate:0}
         </div>
         <div class="panel" role="tabpanel" id="p-own" aria-labelledby="t-own" data-img="own" data-alt="The key picker open over the bar: Menu, Fix last dictation, Last dictation, Select all, Undo, Paste, Enter, Backspace, Space." hidden>
           <h3>Four keys you choose</h3>
-          <p>On the seven-button bar, the four keys around Cursor, ABC and Voice are yours: Space, Backspace, Enter, Paste, Undo, Select all, Last dictation, Fix last dictation or the menu.</p>
+          <p>The four keys around Cursor, ABC and Voice are yours: Space, Backspace, Enter, Paste, Undo, Select all, Last dictation, Fix last dictation or the menu.</p>
           <ul>
             <li><span class="sym" aria-hidden="true">touch_app</span><span>Hold one, or swipe up from it, to pick another on the spot. Picking only sets it; press it to use it.</span></li>
             <li><span class="sym" aria-hidden="true">backspace</span><span>As Backspace, tap then press and hold to keep deleting.</span></li>
@@ -520,6 +521,14 @@ html.js .rise.in{opacity:1;translate:0}
           <ul>
             <li><span class="sym" aria-hidden="true">content_paste</span><span>Each card shows what you said. Tap one and it's cleaned up again and copied.</span></li>
             <li><span class="sym" aria-hidden="true">offline_bolt</span><span>The month's estimated cost, counted on the phone from what was actually sent.</span></li>
+          </ul>
+        </div>
+        <div class="panel" role="tabpanel" id="p-float" aria-labelledby="t-float" data-img="float" data-alt="The floating bar: the same seven keys in a pill clear of the screen's edges with a collapse key at the far right, and above it the collapsed record pill." hidden>
+          <h3>Float it, or shrink it to one button</h3>
+          <p>Choose the floating style and the same bar sits in a pill clear of the screen's edges. The key at its far right shrinks it to just the record button.</p>
+          <ul>
+            <li><span class="sym" aria-hidden="true">touch_app</span><span>Drag the record pill anywhere. The app gets the whole screen, and it comes back where you left it.</span></li>
+            <li><span class="sym" aria-hidden="true">mic</span><span>Tap it to talk: it grows into the recording pill right there. Tap its arrow for the whole bar.</span></li>
           </ul>
         </div>
       </div>

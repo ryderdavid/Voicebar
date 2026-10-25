@@ -1252,6 +1252,16 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     override fun onComputeInsets(outInsets: Insets) {
         super.onComputeInsets(outInsets)
         val v = bar as? DockView ?: return
+        // collapsed: the app keeps the whole screen, and only the pill takes touches
+        v.collapsedPill()?.takeIf { v.isShown }?.let { r ->
+            val h = window.window?.decorView?.height ?: return
+            outInsets.contentTopInsets = h
+            outInsets.visibleTopInsets = h
+            outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+            val loc = IntArray(2).also { v.getLocationInWindow(it) }
+            outInsets.touchableRegion.set(r.left.toInt() + loc[0], r.top.toInt() + loc[1], r.right.toInt() + loc[0], r.bottom.toInt() + loc[1])
+            return
+        }
         val room = v.floatRoom()
         if (room <= 0 || !v.isShown) return
         outInsets.contentTopInsets += room

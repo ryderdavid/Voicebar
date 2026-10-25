@@ -131,6 +131,109 @@ class DockViewTest {
         assertEquals((76 * d).toInt(), dock.height, "plus the navigation area under it, in the same surface")
     }
 
+    private fun floating(collapsed: Boolean = false) {
+        Prefs.get(activity).edit().putString(Prefs.BAR_STYLE, Prefs.BAR_STYLE_FLOATING).putBoolean(Prefs.BAR_COLLAPSED, collapsed).commit()
+        dock.reloadSettings()
+        relayout()
+    }
+
+    @Test fun dockedHasNoCollapseKey() {
+        assertFalse(dock.testHas(DockView.Act.COLLAPSE))
+        assertFalse(dock.testCollapsed)
+        assertNull(dock.testCollapsedPill())
+    }
+
+    @Test fun floatingIsTheSameSevenKeysInAPillWithACollapseKeyAtTheFarRight() {
+        val docked = assertNotNull(dock.testItem(DockView.Act.MIC)).height()
+        floating()
+        assertEquals((52 * d).toInt(), dock.height, "the same height as the docked bar")
+        val order = listOf(DockView.Act.MORE, DockView.Act.SPACE_ALT, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.BACKSPACE, DockView.Act.ENTER, DockView.Act.COLLAPSE)
+        val rects = order.map { assertNotNull(dock.testItem(it), "$it") }
+        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.right < b.left, "in order, the collapse key last") }
+        rects.dropLast(1).forEach { assertEquals(rects[0].width(), it.width(), 0.5f) }
+        assertTrue(rects.last().width() < rects[0].width() * 0.75f, "the collapse key is the narrow one")
+        assertEquals(docked, rects[4].height(), 0.5f, "keys the same size as docked")
+        assertTrue(rects.first().left >= 8 * d + 6 * d - 1 && rects.last().right <= dock.width - 8 * d - 6 * d + 1, "clear of the screen's edges, in the bar's own padding")
+        // dictating works the same, inside the pill
+        tap(DockView.Act.MIC)
+        relayout()
+        assertTrue(dock.testTalking)
+        assertTrue(dock.testHas(DockView.Act.BACKSPACE) && dock.testHas(DockView.Act.ENTER) && dock.testHas(DockView.Act.COLLAPSE))
+        assertTrue(dock.testItem(DockView.Act.CURSOR)!!.left >= 8 * d)
+    }
+
+    @Test fun collapsingLeavesOnlyTheRecordPillAndTheArrowBringsTheBarBack() {
+        floating()
+        tap(DockView.Act.COLLAPSE)
+        relayout()
+        assertTrue(dock.testCollapsed)
+        assertTrue(Prefs.get(activity).getBoolean(Prefs.BAR_COLLAPSED, false), "remembered")
+        for (a in listOf(DockView.Act.MORE, DockView.Act.SPACE_ALT, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.BACKSPACE, DockView.Act.ENTER, DockView.Act.COLLAPSE))
+            assertFalse(dock.testHas(a), "$a is gone")
+        val pill = assertNotNull(dock.testCollapsedPill())
+        assertEquals(52 * d, pill.height(), 1f, "the bar's height")
+        assertTrue(pill.width() < 140 * d, "just the arrow and Voice: ${pill.width() / d} dp")
+        assertEquals(activity.resources.displayMetrics.heightPixels, dock.height, "the whole screen, see-through, so it can go anywhere")
+        assertTrue(pill.contains(at(DockView.Act.MIC).x, at(DockView.Act.MIC).y) && pill.contains(at(DockView.Act.EXPAND).x, at(DockView.Act.EXPAND).y))
+        tap(DockView.Act.EXPAND)
+        relayout()
+        assertFalse(dock.testCollapsed)
+        assertTrue(dock.testHas(DockView.Act.COLLAPSE) && dock.testHas(DockView.Act.MORE))
+        assertEquals((52 * d).toInt(), dock.height)
+    }
+
+    @Test fun theCollapsedPillDragsAnywhereStaysOnScreenAndIsRemembered() {
+        floating(collapsed = true)
+        val before = assertNotNull(dock.testCollapsedPill())
+        val from = at(DockView.Act.MIC)
+        touch(MotionEvent.ACTION_DOWN, from)
+        touch(MotionEvent.ACTION_MOVE, PointF(from.x - 100 * d, from.y - 300 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(from.x - 200 * d, from.y - 400 * d))
+        touch(MotionEvent.ACTION_UP, PointF(from.x - 200 * d, from.y - 400 * d)); idle(20)
+        relayout()
+        val after = assertNotNull(dock.testCollapsedPill())
+        assertEquals(before.centerX() - 200 * d, after.centerX(), 2 * d)
+        assertEquals(before.centerY() - 400 * d, after.centerY(), 2 * d)
+        assertEquals(emptyList(), talk, "a drag isn't a tap: no dictation")
+        // flung past the edge: kept on screen
+        val p2 = at(DockView.Act.MIC)
+        touch(MotionEvent.ACTION_DOWN, p2)
+        touch(MotionEvent.ACTION_MOVE, PointF(p2.x + 2000 * d, p2.y + 3000 * d))
+        touch(MotionEvent.ACTION_UP, PointF(p2.x + 2000 * d, p2.y + 3000 * d)); idle(20)
+        relayout()
+        val edge = assertNotNull(dock.testCollapsedPill())
+        assertTrue(edge.right <= dock.width && edge.bottom <= dock.height && edge.left >= 0 && edge.top >= 0, "on screen: $edge")
+        // and it comes back where it was left
+        val again = DockView(activity, null)
+        activity.setContentView(again, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        again.testSetBottomInset(0) // as the test's own view
+        again.reloadSettings()
+        idle(50)
+        again.measure(View.MeasureSpec.makeMeasureSpec(dock.width, View.MeasureSpec.EXACTLY), 0)
+        again.layout(0, 0, dock.width, again.measuredHeight)
+        val back = assertNotNull(again.testCollapsedPill())
+        assertEquals(edge.centerX(), back.centerX(), 2 * d)
+        assertEquals(edge.centerY(), back.centerY(), 2 * d)
+    }
+
+    @Test fun recordingCollapsedGrowsThePillAndShrinksItBack() {
+        floating(collapsed = true)
+        val small = assertNotNull(dock.testCollapsedPill())
+        tap(DockView.Act.MIC)
+        relayout()
+        assertEquals(listOf("start"), talk)
+        val wide = assertNotNull(dock.testCollapsedPill())
+        assertTrue(wide.width() > small.width() * 2, "the recording pill: ${wide.width() / d} dp")
+        assertTrue(wide.left >= 0 && wide.right <= dock.width, "on screen")
+        assertEquals(small.centerY(), wide.centerY(), 1f, "in place")
+        assertFalse(dock.testHas(DockView.Act.EXPAND), "no arrow while recording")
+        tap(DockView.Act.MIC)
+        idle(600)
+        relayout()
+        assertEquals(listOf("start", "polish"), talk)
+        assertTrue(dock.testCollapsed)
+    }
+
     @Test fun neverSitsUnderTheNavigationBarEvenWhenInsetsReadZero() {
         val fresh = DockView(activity, null)
         activity.setContentView(fresh, android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))

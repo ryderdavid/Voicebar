@@ -91,6 +91,16 @@ object Prefs {
     const val GBOARD_RETURN_MIC_KEY = "mic_key"
     const val GBOARD_RETURN_BUBBLE = "bubble"
     const val DEFAULT_GBOARD_RETURN = GBOARD_RETURN_BAR
+    /** The bar's style: "docked" across the bottom, or "floating" in a pill over the app that collapses to its record button. */
+    const val BAR_STYLE = "bar_style"
+    const val BAR_STYLE_DOCKED = "docked"
+    const val BAR_STYLE_FLOATING = "floating"
+    const val DEFAULT_BAR_STYLE = BAR_STYLE_DOCKED
+    /** The floating bar is collapsed to its record pill. */
+    const val BAR_COLLAPSED = "bar_collapsed"
+    /** Where the collapsed pill was left: its center, as fractions of the screen's width and of the height above the navigation area. */
+    const val PILL_X = "pill_x"
+    const val PILL_Y = "pill_y"
     /** What a tap on ABC does: "keys" (Voicebar's keyboard; hold for Gboard) or "gboard" (Gboard; hold for Voicebar's keyboard). */
     const val ABC_TAP = "abc_tap"
     const val ABC_TAP_KEYS = "keys"

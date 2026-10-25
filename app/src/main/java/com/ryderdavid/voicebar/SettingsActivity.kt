@@ -402,10 +402,17 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
     val setBarKeyMenu = { v: String -> barKeyMenu = v; prefs.edit { putString(Prefs.BAR_KEY_MENU, v) } }
     var barKeyEnter by remember { mutableStateOf(prefs.getString(Prefs.BAR_KEY_ENTER, Prefs.DEFAULT_BAR_KEY_ENTER) ?: Prefs.DEFAULT_BAR_KEY_ENTER) }
     val setBarKeyEnter = { v: String -> barKeyEnter = v; prefs.edit { putString(Prefs.BAR_KEY_ENTER, v) } }
+    var barStyle by remember { mutableStateOf(prefs.getString(Prefs.BAR_STYLE, Prefs.DEFAULT_BAR_STYLE) ?: Prefs.DEFAULT_BAR_STYLE) }
+    val setBarStyle = { v: String -> barStyle = v; prefs.edit { putString(Prefs.BAR_STYLE, v) } }
     var gboardReturn by remember { mutableStateOf(prefs.getString(Prefs.GBOARD_RETURN, Prefs.DEFAULT_GBOARD_RETURN) ?: Prefs.DEFAULT_GBOARD_RETURN) }
     val setGboardReturn = { v: String -> gboardReturn = v; prefs.edit { putString(Prefs.GBOARD_RETURN, v) } }
     val context = LocalContext.current
     SettingsPage(stringResource(R.string.page_look), onBack) {
+        // docked across the bottom, or floating in a pill that collapses to the record button
+        group(R.string.bar_style, listOf(
+            { BarStyleOption(stringResource(R.string.bar_style_docked), stringResource(R.string.bar_style_docked_summary), Prefs.BAR_STYLE_DOCKED, barStyle != Prefs.BAR_STYLE_FLOATING) { setBarStyle(Prefs.BAR_STYLE_DOCKED) } },
+            { BarStyleOption(stringResource(R.string.bar_style_floating), stringResource(R.string.bar_style_floating_summary), Prefs.BAR_STYLE_FLOATING, barStyle == Prefs.BAR_STYLE_FLOATING) { setBarStyle(Prefs.BAR_STYLE_FLOATING) } },
+        ))
         // the bar's four own keys, either side of Cursor · ABC · Voice: each can be anything
         run {
             group(R.string.bar_key_group, listOf<@Composable () -> Unit>(
@@ -413,8 +420,8 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         androidx.compose.ui.viewinterop.AndroidView(
-                            factory = { ctx -> DockView(ctx, null).apply { showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter) } },
-                            update = { it.showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter) },
+                            factory = { ctx -> DockView(ctx, null).apply { showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter, style = barStyle) } },
+                            update = { it.showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter, style = barStyle) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -470,6 +477,26 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
 
 
 /** What the seven-button bar's own keys can be, with their names and descriptions. */
+/** A bar style, and the real bar drawn in it by the keyboard's own view. */
+@Composable
+private fun BarStyleOption(title: String, summary: String, style: String, selected: Boolean, onSelect: () -> Unit) {
+    Column {
+        StyleRow(title, summary, selected, onSelect)
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            onClick = onSelect,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+        ) {
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { ctx -> DockView(ctx, null).apply { showAsPreview(style = style) } },
+                update = { it.showAsPreview(style = style) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = if (style == Prefs.BAR_STYLE_FLOATING) 6.dp else 0.dp),
+            )
+        }
+    }
+}
+
 /** One of the seven-button bar's own keys: what it is now, and a dropdown of everything it can be. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
