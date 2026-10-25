@@ -495,8 +495,13 @@
     <string name="voice_openai_key">OpenAI key (optional)</string>
     <string name="voice_openai_summary">For GPT-6 Luna cleanup</string>
     <string name="voice_openai_help">Paste an OpenAI API key (platform.openai.com › API keys). It\'s used for cleanup with GPT-6 Luna (choose it under Model), and stored encrypted on this phone.</string>
-    <string name="dictations_empty">Your last 10 dictations, as said. Tap one to clean it up again</string>
     <string name="dictations_as_said">As said</string>
+    <string name="dictations_clean_up">Clean up</string>
+    <string name="dictations_none">Nothing dictated yet</string>
+    <string name="ago_now">now</string>
+    <string name="ago_minutes">%1$dm</string>
+    <string name="ago_hours">%1$dh</string>
+    <string name="ago_yesterday">Yesterday</string>
     <string name="dictations_copied">Copied</string>
     <string name="dictation_reclean_no_key">Cleaning up again needs a Claude or OpenAI key</string>
     <string name="dictation_reclean_failed">Couldn\'t clean it up again (%1$s)</string>

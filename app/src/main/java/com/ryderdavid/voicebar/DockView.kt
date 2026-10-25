@@ -42,7 +42,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     var listener: Bar.Listener? = null
 
-    enum class Drawer { NONE, PAD, MENU, KEYS }
+    enum class Drawer { NONE, PAD, KEYS }
     var drawer = Drawer.NONE
         private set
 
@@ -55,10 +55,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         PANEL,
         /** The floating pill's grip (⠿): drag it to move the pill. */
         GRIP,
-        /** The clipboard-history row in the ⋮ menu (scrolls sideways). */
-        CLIP_ROW,
-        /** Clipboard · Dictations, above that row. */
-        CLIP_TABS,
     }
 
     /** A control where it should be now: [id] ties it to its animation across layouts. */
@@ -88,7 +84,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     override var clipPreview: String? = null
         set(v) { if (field != v) { field = v; invalidate() } }
     override var dictations: List<DictationHistory.Entry> = emptyList()
-        set(v) { field = v; clipOptions = null; clampClipScroll(); invalidate() }
+        set(v) { field = v; if (menuHeld != null && v.none { it.time == menuHeld }) menuHeld = null; invalidate() }
     override var voiceInField = false
         set(v) { field = v; invalidate() }
     override var voice = Bar.Voice.OFF
@@ -242,7 +238,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         closeMenu()
         titleCaseOn = false
         resumeAfterDrawer = false // leaving the field: no listening to come back to
-        keysAfterMenu = false
         setDrawer(Drawer.NONE)
         keys.reset()
         invalidate()
@@ -341,8 +336,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             fixMode = fix
             // listening again by hand: no pause left to resume, nor a keyboard to go back to
             resumeAfterDrawer = false
-            keysAfterMenu = false
-            removeCallbacks(resumeRunnable)
+                removeCallbacks(resumeRunnable)
             // the keyboard has the bar's row: it gives it back to the recording pill
             if (drawer == Drawer.KEYS) setDrawer(Drawer.NONE)
             talking = true
@@ -352,7 +346,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             quietSent = false
             removeCallbacks(silenceRunnable)
             postDelayed(silenceRunnable, Bar.quietMs(silenceMs))
-            if (drawer == Drawer.MENU || drawer == Drawer.PAD) setDrawer(Drawer.NONE)
+            if (drawer == Drawer.PAD) setDrawer(Drawer.NONE)
             performHapticFeedback(if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY)
         }
         invalidate()
@@ -377,7 +371,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private var bottomInset = 0
     private var insetOverride = -1
     private val barH get() = dp(BAR_DP)
-    private val drawerPx get() = dp(when (roomFor) { Drawer.KEYS -> KEYS_DP; Drawer.MENU -> DICTATIONS_DP; else -> DRAWER_DP })
+    private val drawerPx get() = dp(if (roomFor == Drawer.KEYS) KEYS_DP else DRAWER_DP)
     /** The panel the drawer's room is sized for: the one open, or the one closing. */
     private var roomFor = Drawer.NONE
     /** The drawer's room stays while a closing panel shrinks back into its pill. */
@@ -650,8 +644,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private fun setDrawer(to: Drawer) {
         if (collapsed && to != Drawer.NONE) setCollapsed(false)
         // the menu opened from the keyboard's ⋮ closes back to the keyboard
-        val d = if (to == Drawer.NONE && drawer == Drawer.MENU && keysAfterMenu) Drawer.KEYS else to
-        if (drawer == Drawer.MENU && d != Drawer.MENU) keysAfterMenu = false
+        val d = to
         if (drawer == d) return
         val opening = drawer == Drawer.NONE
         val was = drawer
@@ -725,7 +718,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (collapsed) collapsedPill()?.let { touch += it }
         else {
             touch += pillRect().apply { offset(0f, barTop) }
-            for (id in listOf("padPanel", "menuPanel")) items.firstOrNull { it.id == id && it.alpha > 0f }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
+            for (id in listOf("padPanel")) items.firstOrNull { it.id == id && it.alpha > 0f }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
         }
         if (menuList) touch += menuBox().apply { offset(0f, barTop) }
         if (picker) pickerBox()?.let { touch += it.apply { offset(0f, barTop) } }
@@ -882,13 +875,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         // the keyboard takes the bar's row too: its bottom row sits where the thumbs already are
         val keysOpen = drawer == Drawer.KEYS
         items.add(0, Item("keysPanel", Act.PANEL, if (keysOpen) RectF(dp(6f), top + dp(4f), w - dp(6f), barH - dp(2f)) else RectF(abcPill), if (keysOpen) 1f else 0f, if (keysOpen) dp(PANEL_CORNER_DP) else b / 2))
-        // the recent dictations, out of ☰ (they're opened from its list)
-        val menuOpen = drawer == Drawer.MENU
-        items.add(0, Item("menuPanel", Act.PANEL, if (menuOpen) RectF(dp(4f), top + dp(4f), w - dp(4f), -dp(2f)) else RectF(more), if (menuOpen) 1f else 0f, if (menuOpen) dp(PANEL_CORNER_DP) else b / 2))
 
         when (drawer) {
             Drawer.PAD -> layoutPad(w, top)
-            Drawer.MENU -> layoutMenu(w, top)
             Drawer.KEYS, Drawer.NONE -> Unit
         }
     }
@@ -907,14 +896,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         drawerItems.add(Item("pad", Act.PAD, RectF(side, top + dp(54f), w - side, -dp(6f))))
     }
 
-    /** The recent dictations' pane: a title, then the cards. */
-    private fun layoutMenu(w: Float, top: Float) {
-        val side = dp(12f)
-        val t0 = top + dp(14f)
-        val tabs = dp(CLIP_TABS_DP)
-        drawerItems.add(Item(Act.CLIP_TABS.name, Act.CLIP_TABS, rect(side, t0 - dp(4f), w - 2 * side, tabs)))
-        drawerItems.add(Item(Act.CLIP_ROW.name, Act.CLIP_ROW, rect(side, t0 - dp(4f) + tabs, w - 2 * side, dp(CLIP_ROW_DP))))
-    }
 
     @VisibleForTesting internal fun testItem(act: Act, ch: Char = ' '): RectF? {
         layoutAll()
@@ -1005,9 +986,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     // ---------------------------------------------------------------- Voicebar's keyboard
 
-    /** The menu was opened from the keyboard's ⋮: closing it brings the keyboard back. */
-    private var keysAfterMenu = false
-
     /** A tap on ABC opens Gboard instead (and a hold, Voicebar's keyboard). */
     private var abcTapGboard = false
 
@@ -1025,7 +1003,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             anims["keysPanel"]?.let { a -> val d = keys.pull; a.v[1] += d; a.v[3] += d; a.rect.offset(0f, d) }
             setDrawer(Drawer.NONE)
         }
-        override fun menu(anchor: RectF) { keysAfterMenu = true; openMenu(anchor) }
+        override fun menu(anchor: RectF) = openMenu(anchor)
         override fun gboard() { resumeAfterDrawer = false; setDrawer(Drawer.NONE); onUsed?.invoke("abc"); listener?.onSwitchToGboard() }
         override fun swipe(points: List<com.ryderdavid.voicebar.swipe.SwipeDecoder.Point>, keys: FloatArray, caps: Int) { listener?.onSwipe(points, keys, caps) }
     })
@@ -1094,7 +1072,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         set(v) { field = v; invalidate() }
 
     private fun pauseFor(d: Drawer) {
-        if (d != Drawer.MENU) onUsed?.invoke(if (d == Drawer.PAD) "cursor" else "abc")
+        onUsed?.invoke(if (d == Drawer.PAD) "cursor" else "abc")
         // what to fix isn't a dictation to come back to: it's dropped, and the panel opens
         if (fixMode) { endTalk(cancel = true, polish = false); setDrawer(d); return }
         endTalk(cancel = false, polish = true)
@@ -1356,6 +1334,12 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     enum class MenuItem { PASTE, DICTATIONS, COLLAPSE, EXPAND, DOCK, FLOAT, SWITCH, SETTINGS }
     /** The menu's row of edit keys. */
     enum class MenuEdit { UNDO, CUT, COPY, PASTE, SELECT_ALL }
+    /** The menu's pages: its items, or the recent dictations (that row morphs the list into them). */
+    enum class MenuPage { MAIN, DICTATIONS }
+    /** On the dictations page: its ‹ back, one dictation (by time), or one of a held dictation's options. */
+    object MenuBack
+    data class DictRow(val time: Long)
+    data class DictOpt(val time: Long, val action: Bar.DictationAction)
 
     /** The menu is up: a list rising from ☰ (or the keyboard's ⋮), like an own key's choices. */
     private var menuList = false
@@ -1366,6 +1350,22 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private var menuTap = false
     /** The key it rises from, in bar coordinates. */
     private var menuAnchor = RectF()
+    private var menuPage = MenuPage.MAIN
+    /** The page it's morphing from, and when that began. */
+    private var menuFrom = MenuPage.MAIN
+    private var menuPageAt = 0L
+    /** The dictation held for its options (its time). */
+    private var menuHeld: Long? = null
+    /** The hold on a dictation has fired: letting go doesn't paste it. */
+    private var menuHoldFired = false
+    private val menuHoldRunnable = Runnable {
+        val k = menuHot as? DictRow ?: return@Runnable
+        menuHeld = k.time
+        menuHoldFired = true
+        menuHot = null
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        invalidate()
+    }
 
     private fun menuItems(): List<MenuItem> = buildList {
         add(MenuItem.PASTE)
@@ -1376,46 +1376,96 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         add(MenuItem.SETTINGS)
     }
 
+    /** The dictations the menu shows: the newest few. */
+    private fun menuDictations() = dictations.take(MENU_DICTATIONS)
+
     /** Where a separator goes: after these. */
     private fun menuBreakAfter(it: MenuItem) = it == MenuItem.DICTATIONS || it == MenuItem.DOCK || it == MenuItem.FLOAT
 
     private val menuRowH get() = dp(48f)
     private val menuEditH get() = dp(54f)
     private val menuSepH get() = dp(9f)
+    private val dictRowH get() = dp(52f)
+    private val dictOptH get() = dp(40f)
+    private val dictOptGap get() = dp(10f)
 
-    private fun menuHeight(): Float {
-        val items = menuItems()
-        return 2 * pickerPad + menuEditH + menuSepH + items.size * menuRowH + items.count { menuBreakAfter(it) } * menuSepH
+    private fun menuHeight(page: MenuPage = menuPage): Float = when (page) {
+        MenuPage.MAIN -> {
+            val items = menuItems()
+            2 * pickerPad + menuEditH + menuSepH + items.size * menuRowH + items.count { menuBreakAfter(it) } * menuSepH
+        }
+        MenuPage.DICTATIONS -> 2 * pickerPad + menuRowH + menuSepH + max(1, menuDictations().size) * dictRowH +
+            (if (menuHeld != null) dictOptH + 2 * dictOptGap else 0f)
     }
 
     /**
-     * The list's box in bar coordinates: above its key, lined up with the key's left edge; when the
-     * collapsed pill is too near the top for that, below it.
+     * The list's box in bar coordinates, for [page]: above its key, lined up with the key's left edge;
+     * when the pill is too near the top for that, below it. Above, it grows upward from a fixed bottom.
      */
-    private fun menuBox(): RectF {
+    private fun menuBox(page: MenuPage = menuPage): RectF {
         val w = min(dp(MENU_W_DP), width - 2 * dp(8f))
-        val h = menuHeight()
+        val h = menuHeight(page)
         val left = menuAnchor.left.coerceIn(dp(8f), width - w - dp(8f))
         val above = menuAnchor.top - dp(PICKER_GAP_DP) - h
         val top = if ((collapsed || freeFloat) && above < -barTop + dp(8f)) menuAnchor.bottom + dp(PICKER_GAP_DP) else above
         return RectF(left, top, left + w, top + h)
     }
 
-    /** Every tappable place in the list: the edit keys, then the rows. */
-    private fun menuTargets(box: RectF): List<Pair<Any, RectF>> {
+    /** How far the morph between pages has got (1: done), eased. */
+    private fun menuMorph(now: Long): Float {
+        val t = ((now - menuPageAt) / MENU_MORPH_MS.toFloat()).coerceIn(0f, 1f)
+        return 1f - (1f - t) * (1f - t) * (1f - t)
+    }
+
+    /** The card as drawn: mid-morph, its height between the two pages', from the edge that stays put. */
+    private fun menuDrawnBox(now: Long): RectF {
+        val to = menuBox()
+        val m = menuMorph(now)
+        if (m >= 1f) return to
+        val h = menuHeight(menuFrom) + (to.height() - menuHeight(menuFrom)) * m
+        val below = to.top > menuAnchor.top
+        return if (below) RectF(to.left, to.top, to.right, to.top + h) else RectF(to.left, to.bottom - h, to.right, to.bottom)
+    }
+
+    /** Every tappable place on [page], laid out in [box]. */
+    private fun menuTargets(box: RectF, page: MenuPage = menuPage): List<Pair<Any, RectF>> {
         val out = ArrayList<Pair<Any, RectF>>()
-        val cw = (box.width() - 2 * pickerPad) / MenuEdit.entries.size
         var y = box.top + pickerPad
-        for ((i, e) in MenuEdit.entries.withIndex()) out += e to RectF(box.left + pickerPad + i * cw, y, box.left + pickerPad + (i + 1) * cw, y + menuEditH)
-        y += menuEditH + menuSepH
-        for (it in menuItems()) {
-            out += it to RectF(box.left + pickerPad, y, box.right - pickerPad, y + menuRowH)
-            y += menuRowH + if (menuBreakAfter(it)) menuSepH else 0f
+        when (page) {
+            MenuPage.MAIN -> {
+                val cw = (box.width() - 2 * pickerPad) / MenuEdit.entries.size
+                for ((i, e) in MenuEdit.entries.withIndex()) out += e to RectF(box.left + pickerPad + i * cw, y, box.left + pickerPad + (i + 1) * cw, y + menuEditH)
+                y += menuEditH + menuSepH
+                for (it in menuItems()) {
+                    out += it to RectF(box.left + pickerPad, y, box.right - pickerPad, y + menuRowH)
+                    y += menuRowH + if (menuBreakAfter(it)) menuSepH else 0f
+                }
+            }
+            MenuPage.DICTATIONS -> {
+                out += MenuBack to RectF(box.left + pickerPad, y, box.right - pickerPad, y + menuRowH)
+                y += menuRowH + menuSepH
+                for (d in menuDictations()) {
+                    out += DictRow(d.time) to RectF(box.left + pickerPad, y, box.right - pickerPad, y + dictRowH)
+                    y += dictRowH
+                    if (d.time == menuHeld) {
+                        // its options, in a row of their own, with room above and below
+                        y += dictOptGap
+                        val opts = listOf(Bar.DictationAction.PASTE_HEARD, Bar.DictationAction.RECLEAN, Bar.DictationAction.DELETE)
+                        val g = dp(6f)
+                        val ow = (box.width() - 2 * pickerPad - 2 * dp(4f) - (opts.size - 1) * g) / opts.size
+                        for ((i, a) in opts.withIndex()) {
+                            val l = box.left + pickerPad + dp(4f) + i * (ow + g)
+                            out += DictOpt(d.time, a) to RectF(l, y, l + ow, y + dictOptH)
+                        }
+                        y += dictOptH + dictOptGap
+                    }
+                }
+            }
         }
         return out
     }
 
-    /** The room the list needs above the bar's top edge (0 when it fits below it, collapsed). */
+    /** The room the list needs above the bar's top edge (0 when it fits below it). */
     private fun menuNeed(): Int = max(0f, -menuBox().top + dp(8f)).toInt()
 
     private fun menuAt(x: Float, y: Float): Any? = menuTargets(menuBox()).firstOrNull { it.second.contains(x, y) }?.first
@@ -1423,6 +1473,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private fun menuEnabled(k: Any) = when (k) {
         MenuEdit.CUT, MenuEdit.COPY -> hasSelection
         MenuEdit.PASTE, MenuItem.PASTE -> canPaste
+        is DictOpt -> k.action != Bar.DictationAction.RECLEAN || recleaning == null
         else -> true
     }
 
@@ -1432,6 +1483,10 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         menuList = true
         menuAt = SystemClock.uptimeMillis()
         menuHot = null
+        menuPage = MenuPage.MAIN
+        menuFrom = MenuPage.MAIN
+        menuPageAt = 0L
+        menuHeld = null
         performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         requestLayout() // the window grows by the list's room
         invalidate()
@@ -1439,9 +1494,11 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     private fun closeMenu() {
         if (!menuList) return
+        removeCallbacks(menuHoldRunnable)
         menuList = false
         menuHot = null
         menuTap = false
+        menuHeld = null
         requestLayout()
         invalidate()
     }
@@ -1449,8 +1506,18 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     /** ☰ tapped: the list, or closed again. */
     private fun toggleMenu() {
         if (menuList) { closeMenu(); return }
-        if (drawer == Drawer.MENU) { setDrawer(Drawer.NONE); return }
         openMenu(items.firstOrNull { it.act == Act.MORE }?.rect ?: return)
+    }
+
+    /** The list morphs into [page]: the card resizes in place while the rows slide across. */
+    private fun menuGoTo(page: MenuPage) {
+        if (page == menuPage) return
+        menuFrom = menuPage
+        menuPage = page
+        menuPageAt = SystemClock.uptimeMillis()
+        menuHeld = null
+        requestLayout()
+        invalidate()
     }
 
     private fun runMenu(k: Any) {
@@ -1464,24 +1531,37 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             MenuEdit.COPY -> l?.onEdit(Bar.EditAction.COPY)
             MenuEdit.PASTE -> l?.onEdit(Bar.EditAction.PASTE)
             MenuEdit.SELECT_ALL -> l?.onEdit(Bar.EditAction.SELECT_ALL)
+            MenuItem.DICTATIONS -> menuGoTo(MenuPage.DICTATIONS)
+            MenuBack -> menuGoTo(MenuPage.MAIN)
             is MenuItem -> {
                 closeMenu()
                 when (k) {
                     MenuItem.PASTE -> l?.onEdit(Bar.EditAction.PASTE)
-                    MenuItem.DICTATIONS -> setDrawer(Drawer.MENU)
                     MenuItem.COLLAPSE -> setCollapsed(true)
                     MenuItem.EXPAND -> setCollapsed(false)
                     MenuItem.DOCK -> setStyle(false)
                     MenuItem.FLOAT -> setStyle(true)
-                    MenuItem.SWITCH -> { keysAfterMenu = false; setDrawer(Drawer.NONE); l?.onSwitchKeyboard() }
-                    MenuItem.SETTINGS -> { keysAfterMenu = false; setDrawer(Drawer.NONE); l?.onOpenSettings() }
+                    MenuItem.SWITCH -> { setDrawer(Drawer.NONE); l?.onSwitchKeyboard() }
+                    MenuItem.SETTINGS -> { setDrawer(Drawer.NONE); l?.onOpenSettings() }
+                    MenuItem.DICTATIONS -> Unit
                 }
+            }
+            // a tap pastes it as typed; with another one's options open, it just closes them
+            is DictRow -> if (menuHeld != null) { menuHeld = null; requestLayout() } else {
+                closeMenu()
+                l?.onDictation(Bar.DictationAction.PASTE_TYPED, k.time)
+            }
+            is DictOpt -> when (k.action) {
+                Bar.DictationAction.PASTE_HEARD -> { closeMenu(); l?.onDictation(k.action, k.time) }
+                // cleaned again and copied, with the list left up to watch it happen
+                Bar.DictationAction.RECLEAN -> { menuHeld = null; requestLayout(); l?.onDictation(k.action, k.time) }
+                else -> { menuHeld = null; requestLayout(); l?.onDictation(k.action, k.time) }
             }
         }
         invalidate()
     }
 
-    /** Touches while the list is up: a tap on a row or key, or anywhere else to close it. */
+    /** Touches while the list is up: a tap (or a hold, on a dictation) on a row or key, or anywhere else to close it. */
     private fun menuTouch(e: MotionEvent): Boolean {
         val x = e.x
         val y = e.y - barTop
@@ -1489,18 +1569,25 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             MotionEvent.ACTION_DOWN -> {
                 val k = menuAt(x, y)
                 menuTap = k != null
+                menuHoldFired = false
                 if (!menuTap) { closeMenu(); pressed = null; consumed = true; return true }
                 menuHot = k
+                if (k is DictRow && menuHeld == null) postDelayed(menuHoldRunnable, CLIP_HOLD_MS)
                 invalidate()
             }
-            MotionEvent.ACTION_MOVE -> if (menuTap) { val k = menuAt(x, y); if (k != menuHot) { menuHot = k; invalidate() } }
+            MotionEvent.ACTION_MOVE -> if (menuTap && !menuHoldFired) {
+                val k = menuAt(x, y)
+                if (k != menuHot) { removeCallbacks(menuHoldRunnable); menuHot = k; invalidate() }
+            }
             MotionEvent.ACTION_UP -> if (menuTap) {
+                removeCallbacks(menuHoldRunnable)
                 menuTap = false
                 val k = menuAt(x, y)
                 menuHot = null
-                if (k != null) runMenu(k) else invalidate()
+                if (menuHoldFired) { menuHoldFired = false; requestLayout(); invalidate() }
+                else if (k != null) runMenu(k) else invalidate()
             }
-            MotionEvent.ACTION_CANCEL -> { menuTap = false; menuHot = null; invalidate() }
+            MotionEvent.ACTION_CANCEL -> { removeCallbacks(menuHoldRunnable); menuTap = false; menuHot = null; invalidate() }
         }
         return true
     }
@@ -1520,15 +1607,24 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     }
 
     @VisibleForTesting internal val testMenu get() = menuList
+    @VisibleForTesting internal val testMenuPage get() = menuPage
+    @VisibleForTesting internal val testMenuHeld get() = menuHeld
     @VisibleForTesting internal fun testMenuAt(k: Any): PointF? =
         if (!menuList) null else menuTargets(menuBox()).firstOrNull { it.first == k }?.second?.let { PointF(it.centerX(), it.centerY() + barTop) }
     @VisibleForTesting internal fun testMenuItems() = menuItems()
 
+    /** A divider between groups: a line that shows on the list's own color, whatever the palette. */
+    private fun menuDivider(canvas: Canvas, box: RectF, y: Float, al: Float) {
+        fill.color = alpha(ColorUtils.blendARGB(palette.cardinal, palette.onCardinal, 0.22f), al)
+        canvas.drawRect(box.left + dp(18f), y - dp(0.5f), box.right - dp(18f), y + dp(0.5f), fill)
+    }
+
     private fun drawMenu(canvas: Canvas, now: Long) {
-        val box = menuBox()
         val pal = palette
+        val box = menuDrawnBox(now)
         val e = ((now - menuAt) / 180f).coerceIn(0f, 1f).let { 1f - (1f - it) * (1f - it) }
-        if (e < 1f) postInvalidateOnAnimation()
+        val m = menuMorph(now)
+        if (e < 1f || m < 1f) postInvalidateOnAnimation()
         canvas.save()
         canvas.translate(0f, dp(10f) * (1f - e) * if (box.top > menuAnchor.top) -1f else 1f)
         val r = dp(24f)
@@ -1538,60 +1634,166 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         }
         fill.color = alpha(pal.cardinal, e)
         canvas.drawRoundRect(box, r, r, fill)
-        val targets = menuTargets(box)
-        text.textSize = dp(15f)
+        // the pages, inside the card: mid-morph the old one slides out left and the new one in from the right
+        canvas.save()
+        menuClip.reset(); menuClip.addRoundRect(box, r, r, android.graphics.Path.Direction.CW)
+        canvas.clipPath(menuClip)
+        val slide = dp(28f)
+        val forward = menuPage == MenuPage.DICTATIONS
+        if (m < 1f) drawMenuPage(canvas, menuFrom, e * (1f - m), (if (forward) -slide else slide) * m)
+        drawMenuPage(canvas, menuPage, e * m, (if (forward) slide else -slide) * (1f - m))
+        canvas.restore()
+        text.textAlign = Paint.Align.CENTER
+        canvas.restore()
+    }
+    private val menuClip = android.graphics.Path()
+
+    /** One page of the list, laid out in its own box, faded to [al] and moved across by [dx]. */
+    private fun drawMenuPage(canvas: Canvas, page: MenuPage, al: Float, dx: Float) {
+        if (al <= 0.01f) return
+        val pal = palette
+        val box = menuBox(page)
+        canvas.save()
+        canvas.translate(dx, 0f)
         text.textAlign = Paint.Align.LEFT
+        val targets = menuTargets(box, page)
         for ((k, row) in targets) {
             val on = menuEnabled(k)
             val hot = k == menuHot && on
-            if (k is MenuEdit) {
-                val cr = min(row.width(), row.height()) / 2 - dp(3f)
-                fill.color = alpha(if (hot) pal.pressed else if (on) pal.diagonal else Color.TRANSPARENT, e)
-                if (Color.alpha(fill.color) > 0) canvas.drawCircle(row.centerX(), row.centerY(), cr, fill)
-                fill.color = alpha(if (hot) pal.onPressed else if (on) pal.onDiagonal else pal.onCardinal, e * if (on) 1f else 0.38f)
-                val g = when (k) { MenuEdit.UNDO -> Icons.Glyph.UNDO; MenuEdit.CUT -> Icons.Glyph.CUT; MenuEdit.COPY -> Icons.Glyph.COPY; MenuEdit.PASTE -> Icons.Glyph.PASTE; MenuEdit.SELECT_ALL -> Icons.Glyph.SELECT_ALL }
-                Icons.draw(canvas, g, row.centerX(), row.centerY(), dp(21f), fill)
-                continue
-            }
-            val item = k as MenuItem
-            if (hot) { fill.color = alpha(pal.pressed, e); canvas.drawRoundRect(row, row.height() / 2, row.height() / 2, fill) }
-            val c = alpha(if (hot) pal.onPressed else pal.onCardinal, e * if (on) 1f else 0.38f)
-            val ix = row.left + dp(24f)
-            fill.color = c
-            when (item) {
-                MenuItem.PASTE -> Icons.draw(canvas, Icons.Glyph.PASTE, ix, row.centerY(), dp(21f), fill)
-                MenuItem.DICTATIONS -> Icons.draw(canvas, Icons.Glyph.HISTORY, ix, row.centerY(), dp(21f), fill)
-                MenuItem.COLLAPSE -> drawCollapseGlyph(canvas, ix, row.centerY(), dp(22f), c)
-                MenuItem.EXPAND -> drawExpandGlyph(canvas, ix, row.centerY(), dp(22f), c)
-                MenuItem.DOCK -> drawDockGlyph(canvas, ix, row.centerY(), dp(22f), c)
-                MenuItem.FLOAT -> drawFloatGlyph(canvas, ix, row.centerY(), dp(22f), c)
-                MenuItem.SWITCH -> Icons.draw(canvas, Icons.Glyph.SWITCH_KEYBOARD, ix, row.centerY(), dp(21f), fill)
-                MenuItem.SETTINGS -> Icons.draw(canvas, Icons.Glyph.SETTINGS, ix, row.centerY(), dp(21f), fill)
-            }
-            val label = context.getString(MENU_LABELS.getValue(item))
-            text.color = c
-            val tx = row.left + dp(52f)
-            val preview = if (item == MenuItem.PASTE) clipPreview?.replace(Regex("\\s+"), " ")?.trim()?.ifBlank { null } else null
-            if (preview != null) {
-                text.textSize = dp(15f)
-                canvas.drawText(label, tx, row.centerY() - dp(3f), text)
-                clipPaint.color = alpha(if (hot) pal.onPressed else pal.onCardinal, e * 0.72f)
-                clipPaint.textSize = dp(12f)
-                canvas.drawText(android.text.TextUtils.ellipsize("“$preview”", clipPaint, row.right - dp(12f) - tx, android.text.TextUtils.TruncateAt.END).toString(), tx, row.centerY() + dp(14f), clipPaint)
-            } else canvas.drawText(label, tx, row.centerY() - (text.ascent() + text.descent()) / 2, text)
-            if (item == MenuItem.DICTATIONS) strokePath(canvas, row.right - dp(20f), row.centerY(), dp(18f), c) { m, l -> m(9f, 6f); l(15f, 12f); l(9f, 18f) }
-            if (menuBreakAfter(item)) {
-                fill.color = alpha(pal.outline, e)
-                canvas.drawRect(box.left + dp(18f), row.bottom + menuSepH / 2 - dp(0.5f), box.right - dp(18f), row.bottom + menuSepH / 2 + dp(0.5f), fill)
+            when (k) {
+                is MenuEdit -> {
+                    val cr = min(row.width(), row.height()) / 2 - dp(3f)
+                    fill.color = alpha(if (hot) pal.pressed else if (on) pal.diagonal else Color.TRANSPARENT, al)
+                    if (Color.alpha(fill.color) > 0) canvas.drawCircle(row.centerX(), row.centerY(), cr, fill)
+                    fill.color = alpha(if (hot) pal.onPressed else if (on) pal.onDiagonal else pal.onCardinal, al * if (on) 1f else 0.38f)
+                    val g = when (k) { MenuEdit.UNDO -> Icons.Glyph.UNDO; MenuEdit.CUT -> Icons.Glyph.CUT; MenuEdit.COPY -> Icons.Glyph.COPY; MenuEdit.PASTE -> Icons.Glyph.PASTE; MenuEdit.SELECT_ALL -> Icons.Glyph.SELECT_ALL }
+                    Icons.draw(canvas, g, row.centerX(), row.centerY(), dp(21f), fill)
+                }
+                is MenuItem -> drawMenuItem(canvas, box, k, row, hot, on, al)
+                MenuBack -> {
+                    // ‹ and the page's title
+                    val c = alpha(pal.onCardinal, al)
+                    fill.color = alpha(if (hot) pal.pressed else pal.diagonal, al)
+                    canvas.drawCircle(row.left + dp(24f), row.centerY(), dp(18f), fill)
+                    strokePath(canvas, row.left + dp(24f), row.centerY(), dp(18f), alpha(if (hot) pal.onPressed else pal.onDiagonal, al)) { mv, ln -> mv(14f, 6f); ln(8f, 12f); ln(14f, 18f) }
+                    text.textSize = dp(15f)
+                    text.color = c
+                    canvas.drawText(context.getString(R.string.menu_dictations), row.left + dp(52f), row.centerY() - (text.ascent() + text.descent()) / 2, text)
+                    menuDivider(canvas, box, row.bottom + menuSepH / 2, al)
+                }
+                is DictRow -> drawDictRow(canvas, k, row, hot, al)
+                is DictOpt -> {
+                    val del = k.action == Bar.DictationAction.DELETE
+                    val bg = if (hot) pal.pressed else if (del) pal.discard else pal.diagonal
+                    val fg = if (hot) pal.onPressed else if (del) pal.onDiscard else pal.onDiagonal
+                    fill.color = alpha(bg, al * if (on) 1f else 0.38f)
+                    canvas.drawRoundRect(row, row.height() / 2, row.height() / 2, fill)
+                    val label = context.getString(when (k.action) {
+                        Bar.DictationAction.PASTE_HEARD -> R.string.dictations_as_said
+                        Bar.DictationAction.RECLEAN -> R.string.dictations_clean_up
+                        else -> R.string.clips_delete
+                    })
+                    clipPaint.textSize = dp(13f)
+                    clipPaint.color = alpha(fg, al)
+                    // one line, always (labels only, so the three match)
+                    val shown = android.text.TextUtils.ellipsize(label, clipPaint, row.width() - dp(12f), android.text.TextUtils.TruncateAt.END).toString()
+                    val x = row.centerX() - clipPaint.measureText(shown) / 2
+                    canvas.drawText(shown, x, row.centerY() - (clipPaint.ascent() + clipPaint.descent()) / 2, clipPaint)
+                }
             }
         }
-        // under the edit keys
-        targets.firstOrNull { it.first is MenuItem }?.second?.let { first ->
-            fill.color = alpha(pal.outline, e)
-            canvas.drawRect(box.left + dp(18f), first.top - menuSepH / 2 - dp(0.5f), box.right - dp(18f), first.top - menuSepH / 2 + dp(0.5f), fill)
+        if (page == MenuPage.MAIN) {
+            // under the edit keys
+            targets.firstOrNull { it.first is MenuItem }?.second?.let { first -> menuDivider(canvas, box, first.top - menuSepH / 2, al) }
+        } else if (menuDictations().isEmpty()) {
+            text.textSize = dp(14f)
+            text.color = alpha(pal.onCardinal, al * 0.8f)
+            val y0 = box.top + pickerPad + menuRowH + menuSepH
+            canvas.drawText(context.getString(R.string.dictations_none), box.left + pickerPad + dp(16f), y0 + dictRowH / 2 - (text.ascent() + text.descent()) / 2, text)
         }
-        text.textAlign = Paint.Align.CENTER
         canvas.restore()
+    }
+
+    private fun drawMenuItem(canvas: Canvas, box: RectF, item: MenuItem, row: RectF, hot: Boolean, on: Boolean, al: Float) {
+        val pal = palette
+        if (hot) { fill.color = alpha(pal.pressed, al); canvas.drawRoundRect(row, row.height() / 2, row.height() / 2, fill) }
+        val c = alpha(if (hot) pal.onPressed else pal.onCardinal, al * if (on) 1f else 0.38f)
+        val ix = row.left + dp(24f)
+        fill.color = c
+        when (item) {
+            MenuItem.PASTE -> Icons.draw(canvas, Icons.Glyph.PASTE, ix, row.centerY(), dp(21f), fill)
+            MenuItem.DICTATIONS -> Icons.draw(canvas, Icons.Glyph.HISTORY, ix, row.centerY(), dp(21f), fill)
+            MenuItem.COLLAPSE -> drawCollapseGlyph(canvas, ix, row.centerY(), dp(22f), c)
+            MenuItem.EXPAND -> drawExpandGlyph(canvas, ix, row.centerY(), dp(22f), c)
+            MenuItem.DOCK -> drawDockGlyph(canvas, ix, row.centerY(), dp(22f), c)
+            MenuItem.FLOAT -> drawFloatGlyph(canvas, ix, row.centerY(), dp(22f), c)
+            MenuItem.SWITCH -> Icons.draw(canvas, Icons.Glyph.SWITCH_KEYBOARD, ix, row.centerY(), dp(21f), fill)
+            MenuItem.SETTINGS -> Icons.draw(canvas, Icons.Glyph.SETTINGS, ix, row.centerY(), dp(21f), fill)
+        }
+        val label = context.getString(MENU_LABELS.getValue(item))
+        text.color = c
+        text.textSize = dp(15f)
+        val tx = row.left + dp(52f)
+        val preview = if (item == MenuItem.PASTE) clipPreview?.replace(Regex("\\s+"), " ")?.trim()?.ifBlank { null } else null
+        if (preview != null) {
+            canvas.drawText(label, tx, row.centerY() - dp(3f), text)
+            clipPaint.color = alpha(if (hot) pal.onPressed else pal.onCardinal, al * 0.72f)
+            clipPaint.textSize = dp(12f)
+            canvas.drawText(android.text.TextUtils.ellipsize("“$preview”", clipPaint, row.right - dp(12f) - tx, android.text.TextUtils.TruncateAt.END).toString(), tx, row.centerY() + dp(14f), clipPaint)
+        } else canvas.drawText(label, tx, row.centerY() - (text.ascent() + text.descent()) / 2, text)
+        if (item == MenuItem.DICTATIONS) strokePath(canvas, row.right - dp(20f), row.centerY(), dp(18f), c) { m, l -> m(9f, 6f); l(15f, 12f); l(9f, 18f) }
+        if (menuBreakAfter(item)) menuDivider(canvas, box, row.bottom + menuSepH / 2, al)
+    }
+
+    /** One dictation: a line of what was typed, cut off with an ellipsis, and how long ago. */
+    private fun drawDictRow(canvas: Canvas, k: DictRow, row: RectF, hot: Boolean, al: Float) {
+        val pal = palette
+        val d = dictations.firstOrNull { it.time == k.time } ?: return
+        val held = menuHeld == k.time
+        val dim = menuHeld != null && !held
+        val lit = hot || held
+        if (lit) { fill.color = alpha(pal.pressed, al); canvas.drawRoundRect(row, row.height() / 2, row.height() / 2, fill) }
+        val c = alpha(if (lit) pal.onPressed else pal.onCardinal, al * if (dim) 0.38f else 1f)
+        val now = SystemClock.uptimeMillis()
+        val copied = d.time == recleaned && now < recleanedUntil
+        val ago = if (copied) context.getString(R.string.dictations_copied) else ago(d.time)
+        clipPaint.textSize = dp(12f)
+        clipPaint.color = alpha(if (lit) pal.onPressed else pal.onCardinal, al * (if (dim) 0.38f else 0.72f))
+        val aw = clipPaint.measureText(ago)
+        canvas.drawText(ago, row.right - dp(16f) - aw, row.centerY() - (clipPaint.ascent() + clipPaint.descent()) / 2, clipPaint)
+        text.textSize = dp(14.5f)
+        text.color = c
+        val words = d.typed.ifBlank { d.heard }.replace(Regex("\\s+"), " ").trim()
+        val tx = row.left + dp(16f)
+        val shown = android.text.TextUtils.ellipsize(words, android.text.TextPaint(text), row.right - dp(16f) - aw - dp(12f) - tx, android.text.TextUtils.TruncateAt.END).toString()
+        canvas.drawText(shown, tx, row.centerY() - (text.ascent() + text.descent()) / 2, text)
+        if (d.time == recleaning) {
+            // being cleaned again: the recording pill's polishing glow, sweeping across the row
+            canvas.save()
+            pulseClip.reset(); pulseClip.addRoundRect(row, row.height() / 2, row.height() / 2, android.graphics.Path.Direction.CW)
+            canvas.clipPath(pulseClip)
+            val p = ((now % PULSE_MS) / PULSE_MS.toFloat()).let { it * it * (3f - 2f * it) }
+            val sw = row.width() * 0.5f
+            val sx = row.left - sw + (row.width() + sw) * p
+            val glow = alpha(pal.pressed, al * 0.6f)
+            pulsePaint.shader = android.graphics.LinearGradient(sx, 0f, sx + sw, 0f,
+                intArrayOf(glow and 0x00ffffff, glow, glow and 0x00ffffff), null, android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawRect(sx, row.top, sx + sw, row.bottom, pulsePaint)
+            canvas.restore()
+            postInvalidateOnAnimation()
+        }
+    }
+
+    /** How long ago [time] (wall-clock ms) was, briefly: now, 12m, 3h, Yesterday, or the date. */
+    private fun ago(time: Long): String {
+        val mins = (System.currentTimeMillis() - time) / 60_000L
+        return when {
+            mins < 1 -> context.getString(R.string.ago_now)
+            mins < 60 -> context.getString(R.string.ago_minutes, mins)
+            mins < 24 * 60 -> context.getString(R.string.ago_hours, mins / 60)
+            mins < 48 * 60 -> context.getString(R.string.ago_yesterday)
+            else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date(time))
+        }
     }
 
     /** Collapse: two arrows pointing in; expand: pointing out. */
@@ -1758,179 +1960,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         postDelayed({ invalidate() }, RECLEANED_MS + 20)
     }
 
-    /** One dictation's card ([heard] what was said before cleanup). */
-    private data class Card(val id: String, val text: String, val time: Long = 0L, val heard: String? = null)
-
-    /** What was said, before cleanup: a tap cleans it again. */
-    private fun cards(): List<Card> = dictations.map { Card(it.time.toString(), it.heard.ifBlank { it.typed }, time = it.time, heard = it.heard) }
-
-    /** How far the row has scrolled, in px. */
-    private var clipScroll = 0f
-    private var clipScrollFrom = 0f
-    private var clipDownX = 0f
-    private var clipScrolling = false
-    private var clipHeld = false
-    /** The card showing its two options after a hold, by id (null: none). */
-    private var clipOptions: String? = null
-    private var clipRowRect: RectF? = null
-    private val clipHoldRunnable = Runnable {
-        val r = clipRowRect ?: return@Runnable
-        if (clipScrolling) return@Runnable
-        clipAt(r, clipDownX)?.let { c ->
-            clipHeld = true
-            clipOptions = c.id
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            invalidate()
-        }
-    }
-
-    private fun clipCardWidth(r: RectF) = (r.width() - 2 * dp(CLIP_GAP_DP)) / 3f
-
-    private fun clampClipScroll() {
-        val r = clipRowRect ?: return
-        val max = (cards().size * (clipCardWidth(r) + dp(CLIP_GAP_DP)) - dp(CLIP_GAP_DP) - r.width()).coerceAtLeast(0f)
-        clipScroll = clipScroll.coerceIn(0f, max)
-    }
-
-    private fun clipAt(r: RectF, x: Float): Card? {
-        val step = clipCardWidth(r) + dp(CLIP_GAP_DP)
-        val i = ((x - r.left + clipScroll) / step).toInt()
-        val within = (x - r.left + clipScroll) - i * step <= clipCardWidth(r)
-        return cards().getOrNull(i)?.takeIf { within }
-    }
-
-    private fun clipDown(r: RectF, x: Float) {
-        clipRowRect = RectF(r)
-        clipDownX = x
-        clipScrollFrom = clipScroll
-        clipScrolling = false
-        clipHeld = false
-        if (clipOptions == null) postDelayed(clipHoldRunnable, CLIP_HOLD_MS)
-    }
-
-    private fun clipMove(x: Float) {
-        if (!clipScrolling && abs(x - clipDownX) > dp(8f)) { clipScrolling = true; removeCallbacks(clipHoldRunnable); clipOptions = null }
-        if (clipScrolling) { clipScroll = clipScrollFrom - (x - clipDownX); clampClipScroll(); invalidate() }
-    }
-
-    private fun clipUp(r: RectF, x: Float, y: Float) {
-        removeCallbacks(clipHoldRunnable)
-        if (clipScrolling || clipHeld) { clipScrolling = false; clipHeld = false; invalidate(); return }
-        val all = cards()
-        val c = clipAt(r, x) ?: run { clipOptions = null; invalidate(); return }
-        val options = clipOptions
-        if (options != null) {
-            // a card's two options: the left half pastes it as said, the right half deletes; any other card closes them
-            if (c.id == options) {
-                val step = clipCardWidth(r) + dp(CLIP_GAP_DP)
-                val mid = r.left - clipScroll + all.indexOf(c) * step + clipCardWidth(r) / 2
-                val left = x < mid
-                if (left) { setDrawer(Drawer.NONE); if (talking) endTalk(cancel = true, polish = false) }
-                listener?.onDictation(if (left) Bar.DictationAction.PASTE_HEARD else Bar.DictationAction.DELETE, c.time)
-            }
-            clipOptions = null
-            invalidate()
-            return
-        }
-        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        // cleaned again and copied, with the pane left open to watch it happen
-        if (recleaning == null) listener?.onDictation(Bar.DictationAction.RECLEAN, c.time)
-    }
-
-    /** The pane's title, over its cards. */
-    private fun drawClipTabs(canvas: Canvas, r: RectF, al: Float) {
-        text.textSize = dp(13f)
-        text.textAlign = Paint.Align.LEFT
-        text.color = alpha(palette.onCardinal, al)
-        canvas.drawText(context.getString(R.string.menu_dictations), r.left + dp(4f), r.centerY() - (text.ascent() + text.descent()) / 2, text)
-        text.textAlign = Paint.Align.CENTER
-    }
-
-    private fun drawClipRow(canvas: Canvas, r: RectF, al: Float) {
-        clipRowRect = RectF(r)
-        val pal = palette
-        val cw = clipCardWidth(r)
-        val gap = dp(CLIP_GAP_DP)
-        val corner = dp(INNER_CORNER_DP)
-        val all = cards()
-        canvas.save()
-        canvas.clipRect(r)
-        if (all.isEmpty()) {
-            fill.color = alpha(pal.tile, al * GHOST)
-            canvas.drawRoundRect(r, corner, corner, fill)
-            text.textSize = dp(13f)
-            text.color = alpha(pal.onCardinal, al * 0.8f)
-            canvas.drawText(context.getString(R.string.dictations_empty),
-                r.centerX(), r.centerY() - (text.ascent() + text.descent()) / 2, text)
-            canvas.restore()
-            return
-        }
-        clipPaint.textSize = dp(13f)
-        val line = clipPaint.fontSpacing
-        for ((i, c) in all.withIndex()) {
-            val left = r.left - clipScroll + i * (cw + gap)
-            if (left > r.right || left + cw < r.left) continue
-            val card = RectF(left, r.top, left + cw, r.bottom)
-            if (c.time == recleaned && SystemClock.uptimeMillis() < recleanedUntil) {
-                // the new cleanup is on the clipboard
-                fill.color = alpha(pal.pressed, al)
-                canvas.drawRoundRect(card, corner, corner, fill)
-                text.textSize = dp(13f)
-                text.color = alpha(pal.onPressed, al)
-                canvas.drawText(context.getString(R.string.dictations_copied), card.centerX(), card.centerY() - (text.ascent() + text.descent()) / 2, text)
-                continue
-            }
-            fill.color = alpha(pal.tile, al)
-            canvas.drawRoundRect(card, corner, corner, fill)
-            if (clipOptions == c.id) {
-                // two halves: As said on the left, Delete on the right
-                val half = RectF(card.left, card.top, card.centerX(), card.bottom)
-                fill.color = alpha(pal.pressed, al)
-                canvas.drawRoundRect(half, corner, corner, fill)
-                canvas.drawRect(half.right - corner, half.top, half.right, half.bottom, fill)
-                text.textSize = dp(12f)
-                text.color = alpha(pal.onPressed, al)
-                canvas.drawText(context.getString(R.string.dictations_as_said), half.centerX(), half.centerY() - (text.ascent() + text.descent()) / 2, text)
-                text.color = alpha(pal.onBloomKey, al)
-                canvas.drawText(context.getString(R.string.clips_delete), (card.centerX() + card.right) / 2, card.centerY() - (text.ascent() + text.descent()) / 2, text)
-                continue
-            }
-            val pad = dp(10f)
-            val textW = cw - 2 * pad
-            clipPaint.color = alpha(pal.onBloomKey, al)
-            clipPaint.textAlign = Paint.Align.LEFT
-            val words = c.text.replace(Regex("\\s+"), " ").trim()
-            val maxLines = ((card.height() - 2 * pad) / line).toInt().coerceIn(1, 3)
-            var rest = words
-            var y = card.top + pad - clipPaint.ascent()
-            for (ln in 0 until maxLines) {
-                if (rest.isEmpty()) break
-                val shown = if (ln == maxLines - 1) android.text.TextUtils.ellipsize(rest, android.text.TextPaint(clipPaint), textW, android.text.TextUtils.TruncateAt.END).toString()
-                    else { val n = clipPaint.breakText(rest, true, textW, null); val cut = rest.take(n); if (n < rest.length && cut.contains(' ')) cut.substringBeforeLast(' ') else cut }
-                canvas.drawText(shown, card.left + pad, y, clipPaint)
-                rest = rest.drop(shown.length).trimStart()
-                y += line
-            }
-            if (c.time == recleaning) {
-                // being cleaned again: the recording pill's polishing glow, sweeping across the card
-                canvas.save()
-                pulseClip.reset(); pulseClip.addRoundRect(card, corner, corner, android.graphics.Path.Direction.CW)
-                canvas.clipPath(pulseClip)
-                val p = ((SystemClock.uptimeMillis() % PULSE_MS) / PULSE_MS.toFloat()).let { it * it * (3f - 2f * it) }
-                val sw = card.width() * 0.7f
-                val sx = card.left - sw + (card.width() + sw) * p
-                // the accent, stronger than the pill's: a white card hides a faint glow
-                val glow = alpha(pal.pressed, al * 0.75f)
-                pulsePaint.shader = android.graphics.LinearGradient(sx, 0f, sx + sw, 0f,
-                    intArrayOf(glow and 0x00ffffff, glow, glow and 0x00ffffff), null, android.graphics.Shader.TileMode.CLAMP)
-                canvas.drawRect(sx, card.top, sx + sw, card.bottom, pulsePaint)
-                canvas.restore()
-                postInvalidateOnAnimation()
-            }
-        }
-        canvas.restore()
-    }
-
     // ---------------------------------------------------------------- touch
 
     private var pressed: Item? = null
@@ -2013,8 +2042,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Act.PAD -> { padDown(x, y); return }
             Act.KEYBOARD -> postDelayed(abcHoldRunnable, ABC_HOLD_MS)
             Act.MIC -> if (!talking && voice == Bar.Voice.OFF && commandSaid == null && drawer == Drawer.NONE) postDelayed(micHoldRunnable, MIC_HOLD_MS)
-            Act.CLIP_ROW -> { clipDown(it.rect, x); return }
-            Act.CLIP_TABS -> return
             // the own keys: a hold opens their choices (with a panel open, a Backspace one still keeps deleting)
             Act.BACKSPACE, Act.SPACE_ALT, Act.ENTER -> if (drawer == Drawer.NONE) ownKeyDown(it.act) else if (deletes(it.act)) {
                 val now = SystemClock.uptimeMillis()
@@ -2118,7 +2145,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         // a swipe up from either of the bar's own keys opens its choices at once
         if (keyOf(p.act) != null && drawer == Drawer.NONE && !sliding &&
             downY - y > dp(SWIPE_UP_DP) && downY - y > abs(x - downX)) { removeCallbacks(repeatRunnable); openPicker(p.act); pickerHover(x, y); return }
-        if (p.act == Act.CLIP_ROW) { clipMove(x); return }
         // the purple "voice bar" pill swiped up: not a command after all
         if (p.act == Act.MIC && commandSaid != null && !swiping && !sliding &&
             downY - y > dp(SWIPE_UP_DP) && downY - y > abs(x - downX)) {
@@ -2196,8 +2222,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (swiping) { swipeEnd(commit = true); return }
         if (p == null) { invalidate(); return }
         if (p.act == Act.PAD) { padUp(); return }
-        if (p.act == Act.CLIP_ROW) { clipUp(p.rect, x, y); return }
-        if (p.act == Act.CLIP_TABS) return
         if (consumed || sliding) { sliding = false; invalidate(); return }
         act(p)
         invalidate()
@@ -2246,7 +2270,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             // the equal layout's own key (in the ⌫ tray, space is handled on release instead); mid-dictation
             // it acts at the cursor like any key, so a paste there keeps what's been said
             Act.SPACE_ALT -> pressExtra(keyOf(Act.SPACE_ALT) ?: Bar.ExtraKey.SPACE)
-            Act.PAD, Act.PANEL, Act.CLEAR_ALL, Act.CLIP_ROW, Act.CLIP_TABS, Act.GRIP -> Unit
+            Act.PAD, Act.PANEL, Act.CLEAR_ALL, Act.GRIP -> Unit
         }
     }
 
@@ -2308,7 +2332,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         }
         val open = when (drawer) {
             Drawer.PAD -> anims["padPanel"]
-            Drawer.MENU -> anims["menuPanel"]
             Drawer.KEYS -> anims["keysPanel"]
             Drawer.NONE -> null
         }
@@ -2346,7 +2369,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             "keysPanel" -> alpha(keys.cardColor(pal), al)
             // the menu: tiles stand out against a solid surface (the faint panel lost them in dark mode)
             // solid surface container, like the settings page behind its rows
-            "menuPanel" -> alpha(pal.disc, al)
             else -> alpha(pal.cardinal, al * 0.55f)
         }
         // the keyboard follows its handle down
@@ -2406,13 +2428,13 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             tiered && act == Act.DISCARD -> if (down) ColorUtils.blendARGB(pal.discard, pal.onDiscard, 0.14f) else pal.discard
             act == Act.DISCARD -> if (down) ColorUtils.blendARGB(pal.error, Color.BLACK, 0.18f) else pal.error
             act == Act.FINISH -> if (down) ColorUtils.blendARGB(pal.pressed, Color.BLACK, 0.18f) else pal.pressed
-            tiered && opensMenu(act) && (menuList || drawer == Drawer.MENU) -> pal.letters
+            tiered && opensMenu(act) && menuList -> pal.letters
             tiered && down && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER) -> ColorUtils.blendARGB(pal.cardinal, pal.onCardinal, 0.14f)
             tiered && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER) -> pal.cardinal
             tiered && act == Act.MORE -> if (down) pal.cardinal else Color.TRANSPARENT
             down -> pal.pressed
             act == Act.CLEAR_ALL -> pal.discard
-            opensMenu(act) && (menuList || drawer == Drawer.MENU) -> pal.pressed
+            opensMenu(act) && menuList -> pal.pressed
             // the own keys: secondary, whatever they're set to
             act in TONAL || act == Act.ENTER -> pal.diagonal
             drawer == Drawer.NONE && (act == Act.MORE || act == Act.SPACE_ALT) -> pal.diagonal
@@ -2422,11 +2444,11 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             tiered && act == Act.DISCARD -> pal.onDiscard
             act == Act.DISCARD -> pal.onError
             act == Act.FINISH -> pal.onPressed
-            tiered && opensMenu(act) && (menuList || drawer == Drawer.MENU) -> pal.onLetters
+            tiered && opensMenu(act) && menuList -> pal.onLetters
             tiered && (act == Act.BACKSPACE || act == Act.SPACE_ALT || act == Act.ENTER || act == Act.MORE) -> pal.onCardinal
             down -> pal.onPressed
             act == Act.CLEAR_ALL -> pal.onDiscard
-            opensMenu(act) && (menuList || drawer == Drawer.MENU) -> pal.onPressed
+            opensMenu(act) && menuList -> pal.onPressed
             act in TONAL || act == Act.ENTER -> pal.onDiagonal
             drawer == Drawer.NONE && (act == Act.MORE || act == Act.SPACE_ALT) -> pal.onDiagonal
             else -> pal.onCardinal
@@ -3116,8 +3138,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
                     canvas.drawCircle(px, py, dp(6f), fill)
                 }
             }
-            Act.CLIP_ROW -> drawClipRow(canvas, r, al)
-            Act.CLIP_TABS -> drawClipTabs(canvas, r, al)
             else -> Unit
         }
     }
@@ -3222,6 +3242,10 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         const val FLOAT_MARGIN_DP = 8f
         /** The menu list's width (less on a narrow screen). */
         const val MENU_W_DP = 264f
+        /** The menu morphing between its items and the recent dictations. */
+        const val MENU_MORPH_MS = 260L
+        /** How many recent dictations the menu shows. */
+        const val MENU_DICTATIONS = 5
         /** Voice in the collapsed pill. */
         const val COLLAPSED_MIC_DP = 64f
         /** The collapsed pill grown into the recording pill (at most; less on a narrow screen). */
@@ -3242,15 +3266,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         const val SPAN_DP = 440f
         const val PULSE_MS = 1400L
         const val DRAWER_DP = 220f
-        const val CLIP_TABS_DP = 30f
-        /** The recent dictations' pane: its title and a row of cards. */
-        const val DICTATIONS_DP = 126f
         /** Material 3 shape scale: panels are extra large (28), what sits inside them large (16): 28 less their 12 inset. */
         const val PANEL_CORNER_DP = 28f
-        const val INNER_CORNER_DP = 16f
-        /** The clipboard-history row in the ⋮ menu: card height, gap, and how long a hold is. */
-        const val CLIP_ROW_DP = 72f
-        const val CLIP_GAP_DP = 8f
+        /** Holding a recent dictation in the menu this long opens its options. */
         const val CLIP_HOLD_MS = 450L
         /** How long a dictation card says "Copied" after its new cleanup goes on the clipboard. */
         const val RECLEANED_MS = 1500L

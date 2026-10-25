@@ -169,9 +169,16 @@ class RenderDockTest {
                 DictationHistory.Entry(1, "remind me to pick up milk and eggs", "Remind me to pick up milk and eggs."),
             )
             val item = dock.testMenuAt(DockView.MenuItem.DICTATIONS)!!
-            touch(MotionEvent.ACTION_DOWN, item); touch(MotionEvent.ACTION_UP, item); idle(30)
+            touch(MotionEvent.ACTION_DOWN, item); touch(MotionEvent.ACTION_UP, item); idle(130)
+            shot("11c-menu-morphing")
+            idle(300)
             dock.settle()
             shot("11d-menu-dictations")
+            val row = dock.testMenuAt(DockView.DictRow(2))!!
+            touch(MotionEvent.ACTION_DOWN, row); idle(600); touch(MotionEvent.ACTION_UP, row); idle(30)
+            dock.settle()
+            shot("11g-menu-dictation-held")
+            touch(MotionEvent.ACTION_DOWN, row); touch(MotionEvent.ACTION_UP, row); idle(30)
             dock.recleaning = 2
             idle(1400 + 600 - (android.os.SystemClock.uptimeMillis() % 1400))
             shot("11e-menu-dictation-cleaning-again")

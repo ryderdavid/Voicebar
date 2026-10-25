@@ -472,16 +472,17 @@ class DockViewTest {
         relayout()
         assertTrue(dock.testMenu)
         menu(DockView.MenuItem.DICTATIONS)
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
+        assertEquals(DockView.Drawer.KEYS, dock.drawer, "the dictations open in the menu, over the keyboard")
         assertFalse(dock.testTalking)
-        tap(DockView.Act.MORE)
+        touch(MotionEvent.ACTION_DOWN, PointF(dock.width - 4f, 2f)); touch(MotionEvent.ACTION_UP, PointF(dock.width - 4f, 2f)); idle(20)
         relayout()
+        assertFalse(dock.testMenu)
         assertEquals(DockView.Drawer.KEYS, dock.drawer)
         assertFalse(dock.testTalking)
         pullKeysDown()
         relayout()
         assertTrue(dock.testTalking)
-        assertEquals(listOf("start", "polish", "start", "polish", "keys open", "keys closed", "keys open", "keys closed", "start"), talk)
+        assertEquals(listOf("start", "polish", "start", "polish", "keys open", "keys closed", "start"), talk, "the menu over the keyboard leaves it up")
         // paused for the keyboard, then off to Gboard: no listening to come back to
         idle(4_100)
         tap(DockView.Act.KEYBOARD)
@@ -692,31 +693,49 @@ class DockViewTest {
         assertEquals(emptyList(), talk, "and that tap did nothing else")
     }
 
-    @Test fun recentDictationsPasteAsTypedOrAsSaid() {
-        dock.dictations = listOf(DictationHistory.Entry(42, "um so tell shauna yes", "Tell Siona yes."))
+    @Test fun recentDictationsOpenInsideTheMenuAndATapPastesOneAsTyped() {
+        dock.dictations = (1..7).map { DictationHistory.Entry(it.toLong(), "heard $it", "Typed $it.") }.reversed()
         menu(DockView.MenuItem.DICTATIONS)
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
-        val row = dock.testItem(DockView.Act.CLIP_ROW)!!
-        val card = PointF(row.left + row.width() / 6, row.centerY())
-        // hold, then the left half: as said
-        touch(MotionEvent.ACTION_DOWN, card); idle(600); touch(MotionEvent.ACTION_UP, card); idle(20)
-        val left = PointF(row.left + row.width() / 12, row.centerY())
-        touch(MotionEvent.ACTION_DOWN, left); touch(MotionEvent.ACTION_UP, left); idle(20)
-        assertEquals(listOf("PASTE_HEARD 42"), dictationActions)
+        assertTrue(dock.testMenu, "the menu stays up: the same card, now the dictations")
+        assertEquals(DockView.MenuPage.DICTATIONS, dock.testMenuPage)
+        assertEquals(DockView.Drawer.NONE, dock.drawer, "no panel")
+        for (t in 7L downTo 3L) assertNotNull(dock.testMenuAt(DockView.DictRow(t)), "dictation $t is listed")
+        assertNull(dock.testMenuAt(DockView.DictRow(2)), "just the newest five")
+        // ‹ goes back to the menu
+        menu(DockView.MenuBack)
+        assertEquals(DockView.MenuPage.MAIN, dock.testMenuPage)
+        menu(DockView.MenuItem.DICTATIONS)
+        menu(DockView.DictRow(5))
+        assertEquals(listOf("PASTE_TYPED 5"), dictationActions)
+        assertFalse(dock.testMenu)
     }
 
-    @Test fun aTapCleansADictationAgainWithThePaneLeftOpen() {
-        dock.dictations = listOf(DictationHistory.Entry(42, "um so tell shauna yes", "Tell Siona yes."))
+    @Test fun holdingADictationOffersAsSaidCleanUpAndDelete() {
+        dock.dictations = listOf(DictationHistory.Entry(42, "um so tell shauna yes", "Tell Siona yes."), DictationHistory.Entry(41, "older", "Older."))
         menu(DockView.MenuItem.DICTATIONS)
-        val row = dock.testItem(DockView.Act.CLIP_ROW)!!
-        val card = PointF(row.left + row.width() / 6, row.centerY())
-        touch(MotionEvent.ACTION_DOWN, card); touch(MotionEvent.ACTION_UP, card); idle(20)
+        val row = assertNotNull(dock.testMenuAt(DockView.DictRow(42)))
+        assertNull(dock.testMenuAt(DockView.DictOpt(42, Bar.DictationAction.RECLEAN)), "no options until it's held")
+        touch(MotionEvent.ACTION_DOWN, row); idle(600); touch(MotionEvent.ACTION_UP, row); idle(20)
+        relayout()
+        assertEquals(42L, dock.testMenuHeld)
+        assertEquals(emptyList(), dictationActions, "a hold doesn't paste it")
+        val opts = listOf(Bar.DictationAction.PASTE_HEARD, Bar.DictationAction.RECLEAN, Bar.DictationAction.DELETE).map { assertNotNull(dock.testMenuAt(DockView.DictOpt(42, it))) }
+        assertTrue(opts.all { it.y > row.y + 20 * d }, "under the row, with room")
+        // clean up: again and copied, with the list left up to watch
+        menu(DockView.DictOpt(42, Bar.DictationAction.RECLEAN))
         assertEquals(listOf("RECLEAN 42"), dictationActions)
-        assertEquals(DockView.Drawer.MENU, dock.drawer, "the pane stays open to show it working")
-        // while one is being cleaned, another tap waits
+        assertTrue(dock.testMenu)
+        assertNull(dock.testMenuHeld)
+        // while one is being cleaned, Clean up waits
         dock.recleaning = 42
-        touch(MotionEvent.ACTION_DOWN, card); touch(MotionEvent.ACTION_UP, card); idle(20)
+        val r2 = assertNotNull(dock.testMenuAt(DockView.DictRow(42)))
+        touch(MotionEvent.ACTION_DOWN, r2); idle(600); touch(MotionEvent.ACTION_UP, r2); idle(20); relayout()
+        menu(DockView.DictOpt(42, Bar.DictationAction.RECLEAN))
         assertEquals(listOf("RECLEAN 42"), dictationActions)
+        // as said: pasted before cleanup, and the menu closes
+        menu(DockView.DictOpt(42, Bar.DictationAction.PASTE_HEARD))
+        assertEquals(listOf("RECLEAN 42", "PASTE_HEARD 42"), dictationActions)
+        assertFalse(dock.testMenu)
     }
 
     @Test fun backspaceWorksWhileDictating() {
@@ -1023,16 +1042,17 @@ class DockViewTest {
         relayout()
         assertTrue(dock.testMenu)
         menu(DockView.MenuItem.DICTATIONS)
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
-        tap(DockView.Act.MORE)
+        assertEquals(DockView.MenuPage.DICTATIONS, dock.testMenuPage)
+        touch(MotionEvent.ACTION_DOWN, PointF(dock.width - 4f, 2f)); touch(MotionEvent.ACTION_UP, PointF(dock.width - 4f, 2f)); idle(20)
         relayout()
+        assertFalse(dock.testMenu)
         assertEquals(DockView.Drawer.KEYS, dock.drawer)
         // pulling the handle down puts the bar back
         pullKeysDown()
         relayout()
         assertEquals(DockView.Drawer.NONE, dock.drawer)
         assertTrue(dock.testHas(DockView.Act.KEYBOARD))
-        assertEquals(listOf("keys open", "keys closed", "keys open", "keys closed"), talk)
+        assertEquals(listOf("keys open", "keys closed"), talk, "the menu over the keyboard leaves it up")
         // the menu on its own still closes to the bar
         tap(DockView.Act.MORE)
         relayout()
