@@ -226,6 +226,82 @@ class DockViewTest {
         assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys)
     }
 
+    private fun upright() {
+        floating()
+        menu(DockView.MenuItem.UPRIGHT)
+        relayout()
+    }
+
+    @Test fun turnedUprightItsAColumnAgainstAnEdgeOverTheApp() {
+        assertFalse(DockView.MenuItem.UPRIGHT in dock.testMenuItems().also { tap(DockView.Act.MORE); relayout() }.let { dock.testMenuItems() }, "not on the docked bar")
+        tap(DockView.Act.MORE); relayout()
+        upright()
+        assertTrue(dock.testUpright)
+        assertTrue(Prefs.get(activity).getBoolean(Prefs.BAR_UPRIGHT, false), "remembered")
+        val order = listOf(DockView.Act.GRIP, DockView.Act.MORE, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.ENTER)
+        val rects = order.map { assertNotNull(dock.testItem(it), "$it") }
+        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.bottom < b.top && abs(a.centerX() - b.centerX()) < 1f, "stacked: ⠿ ☰ Cursor ABC Voice own key") }
+        rects.drop(1).forEach { assertEquals(it.width(), it.height(), 0.5f, "round keys") }
+        assertTrue(rects[1].right > dock.width - 70 * d, "against the right edge")
+        val (content, touch) = assertNotNull(dock.floatingInsets())
+        assertEquals(dock.height, content, "the app keeps the whole screen")
+        assertTrue(touch.first().width() < 70 * d, "only the column takes touches")
+        tap(DockView.Act.MORE); relayout()
+        assertTrue(DockView.MenuItem.SIDEWAYS in dock.testMenuItems())
+        val paste = assertNotNull(dock.testMenuAt(DockView.MenuItem.PASTE))
+        assertTrue(paste.x < rects[1].left, "the menu opens beside it, toward the middle")
+        menu(DockView.MenuItem.SIDEWAYS)
+        assertFalse(dock.testUpright)
+        assertTrue(dock.testHas(DockView.Act.GRIP) && dock.testItem(DockView.Act.MORE)!!.width() > 0f)
+    }
+
+    @Test fun uprightTheRecordingMicStretchesUpToSendAndDownToCancel() {
+        upright()
+        tap(DockView.Act.MIC)
+        relayout()
+        assertTrue(dock.testTalking)
+        val mic = at(DockView.Act.MIC)
+        assertEquals(dock.testItem(DockView.Act.MIC)!!.width(), dock.testItem(DockView.Act.MIC)!!.height(), 0.5f, "still round: no wide pill")
+        // a short pull springs back
+        touch(MotionEvent.ACTION_DOWN, mic)
+        touch(MotionEvent.ACTION_MOVE, PointF(mic.x, mic.y - 25 * d))
+        touch(MotionEvent.ACTION_UP, PointF(mic.x, mic.y - 25 * d)); idle(20)
+        assertTrue(dock.testTalking, "short of full stretch: nothing")
+        // up to full stretch: sent
+        touch(MotionEvent.ACTION_DOWN, mic)
+        touch(MotionEvent.ACTION_MOVE, PointF(mic.x, mic.y - 30 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(mic.x, mic.y - 70 * d))
+        touch(MotionEvent.ACTION_UP, PointF(mic.x, mic.y - 70 * d)); idle(20)
+        assertEquals(listOf("start", "polish", "send"), talk)
+        // down to full stretch: thrown away
+        dock.hideVoice(); idle(600); relayout()
+        tap(DockView.Act.MIC); relayout()
+        val m2 = at(DockView.Act.MIC)
+        touch(MotionEvent.ACTION_DOWN, m2)
+        touch(MotionEvent.ACTION_MOVE, PointF(m2.x, m2.y + 30 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(m2.x, m2.y + 70 * d))
+        touch(MotionEvent.ACTION_UP, PointF(m2.x, m2.y + 70 * d)); idle(20)
+        assertEquals("cancel", talk.last())
+        // a tap finishes and cleans up
+        dock.hideVoice(); idle(600); relayout()
+        tap(DockView.Act.MIC); relayout()
+        tap(DockView.Act.MIC)
+        assertEquals("polish", talk.last())
+    }
+
+    @Test fun uprightItSnapsToTheNearerEdge() {
+        upright()
+        val grip = at(DockView.Act.GRIP)
+        touch(MotionEvent.ACTION_DOWN, grip)
+        touch(MotionEvent.ACTION_MOVE, PointF(grip.x - 120 * d, grip.y - 100 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(grip.x - 260 * d, grip.y - 200 * d))
+        touch(MotionEvent.ACTION_UP, PointF(grip.x - 260 * d, grip.y - 200 * d)); idle(20)
+        relayout()
+        assertTrue(dock.testItem(DockView.Act.MORE)!!.left < 70 * d, "against the left edge now")
+        assertEquals(0f, Prefs.get(activity).getFloat(Prefs.FLOAT_X, 0.5f))
+        assertEquals(grip.y - 200 * d, at(DockView.Act.GRIP).y, 3 * d, "where it was dropped, up and down")
+    }
+
     @Test fun theCollapsedPillDragsAnywhereStaysOnScreenAndIsRemembered() {
         floating(collapsed = true)
         val before = assertNotNull(dock.testCollapsedPill())

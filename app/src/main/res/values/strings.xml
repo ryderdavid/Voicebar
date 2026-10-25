@@ -145,6 +145,8 @@
     <string name="menu_dictations">Recent dictations</string>
     <string name="menu_collapse">Collapse to the record pill</string>
     <string name="menu_expand">Open the whole bar</string>
+    <string name="menu_upright">Turn it upright</string>
+    <string name="menu_sideways">Turn it sideways</string>
     <string name="menu_dock">Dock the bar</string>
     <string name="menu_float">Floating bar</string>
     <string name="bar_key_enter_summary">A new line, or the box\'s own Send, Search or Go. While you dictate, always a line break</string>

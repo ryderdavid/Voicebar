@@ -96,6 +96,8 @@ object Prefs {
     const val BAR_STYLE_DOCKED = "docked"
     const val BAR_STYLE_FLOATING = "floating"
     const val DEFAULT_BAR_STYLE = BAR_STYLE_DOCKED
+    /** The floating bar stands upright against a side edge (a column of round keys) instead of lying across. */
+    const val BAR_UPRIGHT = "bar_upright"
     /** The floating bar is collapsed to its record pill. */
     const val BAR_COLLAPSED = "bar_collapsed"
     /** Where the open floating pill was left (its center, as fractions, like [PILL_X]), unless it's parked at the bottom. */
