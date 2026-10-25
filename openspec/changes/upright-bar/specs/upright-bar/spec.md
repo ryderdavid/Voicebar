@@ -8,11 +8,15 @@ The floating bar's menu SHALL offer Turn it upright, and the upright bar's menu 
 - **THEN** the bar becomes a column of ⠿ · ☰ · Cursor · ABC · Voice · own key against a side edge, floating over the app
 
 ### Requirement: Upright placement
-The upright bar SHALL hug the left or right edge. Dragging ⠿ moves it; when dropped it MUST snap to the nearer edge and stay fully on screen, and its place MUST be remembered. The app MUST keep the whole screen, and only the column and what's open from it take touches.
+Dragging ⠿ SHALL move the upright bar anywhere; it MUST stay where it's dropped, fully on screen, except within 48 dp of a side edge, where it snaps against that edge. Its place MUST be remembered. The app MUST keep the whole screen, and only the column and what's open from it take touches.
 
-#### Scenario: Dropped across the screen
-- **WHEN** the user drags the column past the middle and lets go
-- **THEN** it snaps to that side's edge
+#### Scenario: Dropped in the middle
+- **WHEN** the user drops the column in the middle of the screen
+- **THEN** it stays there
+
+#### Scenario: Dropped near an edge
+- **WHEN** the user drops the column within 48 dp of a side edge
+- **THEN** it snaps against that edge
 
 ### Requirement: Recording upright
 While dictating upright, Voice SHALL stay round with a small, non-scrolling waveform that follows the voice level. Pulling it up or down MUST stretch it in that direction to at most two keys tall; released at full stretch, up sends and down cancels; released short of it, it springs back. A tap MUST finish and clean up. Words go into the box as spoken when that setting is on; otherwise nothing shows until the dictation finishes.

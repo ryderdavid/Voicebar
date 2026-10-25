@@ -289,17 +289,40 @@ class DockViewTest {
         assertEquals("polish", talk.last())
     }
 
-    @Test fun uprightItSnapsToTheNearerEdge() {
+    @Test fun uprightDroppedNearAnEdgeItSnapsAgainstIt() {
         upright()
         val grip = at(DockView.Act.GRIP)
         touch(MotionEvent.ACTION_DOWN, grip)
         touch(MotionEvent.ACTION_MOVE, PointF(grip.x - 120 * d, grip.y - 100 * d))
-        touch(MotionEvent.ACTION_MOVE, PointF(grip.x - 260 * d, grip.y - 200 * d))
-        touch(MotionEvent.ACTION_UP, PointF(grip.x - 260 * d, grip.y - 200 * d)); idle(20)
+        touch(MotionEvent.ACTION_MOVE, PointF(grip.x - 320 * d, grip.y - 200 * d))
+        touch(MotionEvent.ACTION_UP, PointF(grip.x - 320 * d, grip.y - 200 * d)); idle(20)
         relayout()
         assertTrue(dock.testItem(DockView.Act.MORE)!!.left < 70 * d, "against the left edge now")
         assertEquals(0f, Prefs.get(activity).getFloat(Prefs.FLOAT_X, 0.5f))
         assertEquals(grip.y - 200 * d, at(DockView.Act.GRIP).y, 3 * d, "where it was dropped, up and down")
+    }
+
+    @Test fun uprightItStaysWhereItsDroppedAwayFromTheEdges() {
+        upright()
+        val grip = at(DockView.Act.GRIP)
+        // to the middle of the screen: it stays there
+        val mid = dock.width / 2f
+        touch(MotionEvent.ACTION_DOWN, grip)
+        touch(MotionEvent.ACTION_MOVE, PointF((grip.x + mid) / 2, grip.y - 100 * d))
+        touch(MotionEvent.ACTION_MOVE, PointF(mid, grip.y - 200 * d))
+        touch(MotionEvent.ACTION_UP, PointF(mid, grip.y - 200 * d)); idle(20)
+        relayout()
+        assertEquals(mid, at(DockView.Act.GRIP).x, 3 * d, "left in the middle, not pushed to an edge")
+        // nudged to within the snap distance of the right edge: it snaps against it
+        val g2 = at(DockView.Act.GRIP)
+        val nearRight = dock.width - 8 * d - 28 * d - 30 * d
+        touch(MotionEvent.ACTION_DOWN, g2)
+        touch(MotionEvent.ACTION_MOVE, PointF((g2.x + nearRight) / 2, g2.y))
+        touch(MotionEvent.ACTION_MOVE, PointF(nearRight, g2.y))
+        touch(MotionEvent.ACTION_UP, PointF(nearRight, g2.y)); idle(20)
+        relayout()
+        assertEquals(1f, Prefs.get(activity).getFloat(Prefs.FLOAT_X, 0.5f))
+        assertTrue(dock.testItem(DockView.Act.MORE)!!.right > dock.width - 16 * d, "against the right edge")
     }
 
     @Test fun theCollapsedPillDragsAnywhereStaysOnScreenAndIsRemembered() {

@@ -722,9 +722,14 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private val colW get() = ukey + 2 * upad
     /** The column's height: ⠿ and five keys open, ⠿ ☰ and Voice collapsed. */
     private fun columnH() = 2 * upad + ugrip + ugap + if (collapsed) 2 * ukey + ugap else 5 * ukey + 4 * ugap
-    /** Against the right edge (or the left). */
-    private fun columnRight() = (if (collapsed) pillFx else floatFx) >= 0.5f
-    private fun columnLeft(): Float { val m = dp(FLOAT_MARGIN_DP); return if (columnRight()) width - m - colW else m }
+    /** On the right half of the screen (or the left): its menus and panels open toward the middle. */
+    private fun columnRight() = columnLeft() + colW / 2 >= width / 2f
+    /** Where it was left across the screen (its center, as a fraction), kept on screen; at an edge, against it. */
+    private fun columnLeft(): Float {
+        val m = dp(FLOAT_MARGIN_DP)
+        val cx = (if (collapsed) pillFx else floatFx) * width
+        return (cx - colW / 2).coerceIn(m, max(m, width - m - colW))
+    }
     /** The column's top, in view coordinates: where it was dragged, kept on screen. */
     private fun columnTop(): Float {
         val areaH = (height - bottomInset).toFloat()
@@ -786,7 +791,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private fun setUpright(v: Boolean) {
         if (preview || upright == v) return
         upright = v
-        Prefs.get(context).edit().putBoolean(Prefs.BAR_UPRIGHT, v).apply()
+        // upright, it starts against the right edge, part-way up; on its side again, centered and parked
+        if (v) { floatFx = 1f; if (parked || floatFy > 0.8f) floatFy = 0.55f } else { floatFx = 0.5f }
+        Prefs.get(context).edit().putBoolean(Prefs.BAR_UPRIGHT, v).putFloat(Prefs.FLOAT_X, floatFx).putFloat(Prefs.FLOAT_Y, floatFy).apply()
         if (drawer != Drawer.NONE) setDrawer(Drawer.NONE)
         closePicker()
         closeMenu()
@@ -2330,11 +2337,17 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             dragging = false
             val areaH = max(1, height - bottomInset)
             if (vert) {
-                // upright: to the nearer edge, at the height it was dropped
-                val right = (if (collapsed) pillFx else floatFx) >= 0.5f
+                // upright: where it was dropped, or, dropped near a side edge, against it (with a tick)
+                val m = dp(FLOAT_MARGIN_DP)
+                val left = columnLeft()
+                val fx = when {
+                    left - m < dp(SNAP_DP) -> 0f
+                    width - m - colW - left < dp(SNAP_DP) -> 1f
+                    else -> ((left + colW / 2) / width).coerceIn(0f, 1f)
+                }
+                if (fx == 0f || fx == 1f) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 val cy = (columnTop() + columnH() / 2) / areaH
-                if (collapsed) { pillFx = if (right) 1f else 0f; pillFy = cy } else { floatFx = if (right) 1f else 0f; floatFy = cy }
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                if (collapsed) { pillFx = fx; pillFy = cy } else { floatFx = fx; floatFy = cy }
                 if (!preview) Prefs.get(context).edit().apply {
                     if (collapsed) putFloat(Prefs.PILL_X, pillFx).putFloat(Prefs.PILL_Y, pillFy) else putFloat(Prefs.FLOAT_X, floatFx).putFloat(Prefs.FLOAT_Y, floatFy)
                 }.apply()
@@ -3470,6 +3483,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         /** Where the collapsed pill starts: on the right, above where most apps put their message box and Send. */
         const val DEFAULT_PILL_FX = 0.82f
         const val DEFAULT_PILL_FY = 0.74f
+        /** The upright column dropped this close to a side edge snaps against it. */
+        const val SNAP_DP = 48f
         /** The upright column's round keys. */
         const val UPRIGHT_KEY_DP = 44f
         /** A note beside the upright column, at most. */
