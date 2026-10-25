@@ -39,6 +39,7 @@ class RenderFloatingTest {
         val night = mode == "dark"
         val out = File("build/previews/floating").apply { mkdirs() }
         for (style in listOf(Prefs.BAR_STYLE_DOCKED, Prefs.BAR_STYLE_FLOATING)) {
+            // docked: the menu too
             val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
             Prefs.get(activity).edit { clear(); putString(Prefs.BAR_STYLE, style); putFloat(Prefs.PILL_X, 0.8f); putFloat(Prefs.PILL_Y, 0.86f) }
             val dock = DockView(activity, null)
@@ -113,12 +114,23 @@ class RenderFloatingTest {
             tap(DockView.Act.MIC); dock.showListening(); dock.heardSpeech(); idle(1500); dock.heardSpeech(); relayout(); dock.heardSpeech()
             shot("$s-2-recording")
             tap(DockView.Act.MIC); idle(800); dock.hideVoice(); relayout()
-            if (style != Prefs.BAR_STYLE_FLOATING) continue
+            if (style != Prefs.BAR_STYLE_FLOATING) {
+                dock.canPaste = true
+                dock.clipPreview = "Meet at the Camelback trailhead, 6:40 sharp"
+                tap(DockView.Act.MORE); relayout()
+                shot("$s-3-menu")
+                continue
+            }
+            dock.canPaste = true
+            dock.clipPreview = "Meet at the Camelback trailhead, 6:40 sharp"
             tap(DockView.Act.MORE); relayout()
             shot("$s-3-menu")
-            tap(DockView.Act.MORE); relayout()
-            tap(DockView.Act.COLLAPSE); relayout()
+            dock.testMenuAt(DockView.MenuItem.COLLAPSE)!!.let { ev(MotionEvent.ACTION_DOWN, it.x, it.y); ev(MotionEvent.ACTION_UP, it.x, it.y) }
+            relayout()
             shot("collapsed-1-rest")
+            tap(DockView.Act.MORE); relayout()
+            shot("collapsed-3-menu")
+            tap(DockView.Act.MORE); relayout()
             tap(DockView.Act.MIC); dock.showListening(); dock.heardSpeech(); idle(1500); dock.heardSpeech(); relayout(); dock.heardSpeech()
             shot("collapsed-2-recording")
             tap(DockView.Act.MIC); idle(800); dock.hideVoice(); relayout()

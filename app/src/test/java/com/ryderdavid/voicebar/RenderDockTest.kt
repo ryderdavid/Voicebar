@@ -136,18 +136,14 @@ class RenderDockTest {
         shot("06f-fixing")
         dock.hideVoice()
         dock.settle()
+        // ⌫ held: its choices; let go, and a tap elsewhere closes them
         hold(DockView.Act.BACKSPACE)
         dock.settle()
         shot("07-hold-backspace")
         run {
-            val sp = dock.testItem(DockView.Act.SPACE_ALT)!!
-            touch(MotionEvent.ACTION_MOVE, PointF(sp.centerX(), sp.centerY()))
-        }
-        dock.settle()
-        shot("08-tray-space")
-        run {
-            val sp = dock.testItem(DockView.Act.SPACE_ALT)!!
-            touch(MotionEvent.ACTION_UP, PointF(sp.centerX(), sp.centerY())); idle(30)
+            val b = dock.testItem(DockView.Act.BACKSPACE)!!
+            touch(MotionEvent.ACTION_UP, PointF(b.centerX(), b.centerY())); idle(30)
+            touch(MotionEvent.ACTION_DOWN, PointF(4f, 4f)); touch(MotionEvent.ACTION_UP, PointF(4f, 4f)); idle(30)
         }
         dock.canPaste = true
         tap(DockView.Act.CURSOR)
@@ -161,35 +157,20 @@ class RenderDockTest {
         }
         tap(DockView.Act.CURSOR)
         dock.settle()
-        dock.clips = listOf(
-            ClipHistory.Clip("Pick up oat milk and the dry cleaning on the way home", 9, pinned = true),
-            ClipHistory.Clip("https://ryder.works/Voicebar/", 8),
-            ClipHistory.Clip("Meet at the north entrance of the station at noon", 7),
-            ClipHistory.Clip("4417 N 2nd St", 6),
-            ClipHistory.Clip("Thanks! Talk soon", 5),
-        )
+        dock.canPaste = true
+        dock.clipPreview = "Meet at the north entrance of the station at noon"
         tap(DockView.Act.MORE)
         dock.settle()
         shot("11-menu")
         run {
-            // the menu opens on dictations (none yet): the clipboard is the second tab
-            val clipsTab = dock.testTabCenter(DockView.ClipTab.CLIPS)!!
-            touch(MotionEvent.ACTION_DOWN, clipsTab); touch(MotionEvent.ACTION_UP, clipsTab); idle(30)
-            val row = dock.testItem(DockView.Act.CLIP_ROW)!!
-            val p = PointF(row.left + row.width() / 2, row.centerY())
-            touch(MotionEvent.ACTION_DOWN, p); idle(600); touch(MotionEvent.ACTION_UP, p); idle(30)
-            shot("11b-menu-clip-options")
-            val q = PointF(row.left + row.width() / 2, row.centerY())
-            touch(MotionEvent.ACTION_DOWN, q); touch(MotionEvent.ACTION_MOVE, PointF(q.x - row.width() / 2, q.y)); idle(16)
-            shot("11c-menu-clips-scrolled")
-            touch(MotionEvent.ACTION_UP, PointF(q.x - row.width() / 2, q.y)); idle(30)
             dock.dictations = listOf(
                 DictationHistory.Entry(3, "why is create the only option for or sorry why is podcasts the only option for create", "Why is Podcasts the only option for Create?"),
                 DictationHistory.Entry(2, "um tell shauna I'll bring the tent", "Tell Siona I'll bring the tent."),
                 DictationHistory.Entry(1, "remind me to pick up milk and eggs", "Remind me to pick up milk and eggs."),
             )
-            val tab = dock.testTabCenter(DockView.ClipTab.DICTATIONS)!!
-            touch(MotionEvent.ACTION_DOWN, tab); touch(MotionEvent.ACTION_UP, tab); idle(30)
+            val item = dock.testMenuAt(DockView.MenuItem.DICTATIONS)!!
+            touch(MotionEvent.ACTION_DOWN, item); touch(MotionEvent.ACTION_UP, item); idle(30)
+            dock.settle()
             shot("11d-menu-dictations")
             dock.recleaning = 2
             idle(1400 + 600 - (android.os.SystemClock.uptimeMillis() % 1400))
@@ -198,7 +179,7 @@ class RenderDockTest {
             dock.showRecleaned(2)
             shot("11f-menu-dictation-copied")
         }
-        tap(DockView.Act.MORE)
+        dock.reset()
         dock.settle()
         dock.showMessage("Add your ElevenLabs key in settings")
         dock.settle()

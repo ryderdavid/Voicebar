@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 class DictationHistoryTest {
     @Test fun keepsTheLastTenNewestFirstWithBothVersions() {
         var saved: String? = null
-        val store = object : ClipHistory.Store { override fun read() = saved; override fun write(json: String) { saved = json } }
+        val store = object : DictationHistory.Store { override fun read() = saved; override fun write(json: String) { saved = json } }
         val h = DictationHistory(store)
         for (i in 1..12) h.add("um so number $i", "Number $i.", "Messages", now = i.toLong())
         val all = h.all()

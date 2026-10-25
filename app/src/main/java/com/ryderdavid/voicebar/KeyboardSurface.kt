@@ -9,8 +9,6 @@ interface KeyboardSurface {
     var canPaste: Boolean
     /** The start of what's on the clipboard, for the paste button while dictating; null when nothing. */
     var clipPreview: String?
-    /** Clipboard history for the ⋮ menu, pinned first then newest. */
-    var clips: List<ClipHistory.Clip>
     /** The last few dictations, newest first, for the ⋮ menu. */
     var dictations: List<DictationHistory.Entry>
     /** Over Voicebar's keyboard: words that finish the one being typed, best first. */

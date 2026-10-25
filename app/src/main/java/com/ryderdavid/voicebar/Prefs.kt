@@ -119,9 +119,9 @@ object Prefs {
     /** The seven-button bar's second own key, right of Voice (⌫ unless changed): same choices as [BAR_KEY]. */
     const val BAR_KEY_RIGHT = "bar_key_right"
     const val DEFAULT_BAR_KEY_RIGHT = "backspace"
-    /** The seven-button bar's far-left key (⋮, the menu, unless changed): same choices as [BAR_KEY]. */
-    const val BAR_KEY_MENU = "bar_key_menu"
-    const val DEFAULT_BAR_KEY_MENU = "menu"
+    /** The floating pill's one own key, right of Voice (⌫ unless changed): same choices as [BAR_KEY]. */
+    const val BAR_KEY_FLOAT = "bar_key_float"
+    const val DEFAULT_BAR_KEY_FLOAT = "backspace"
     /** The seven-button bar's far-right key (↵ unless changed): same choices as [BAR_KEY]. */
     const val BAR_KEY_ENTER = "bar_key_enter"
     const val DEFAULT_BAR_KEY_ENTER = "enter"

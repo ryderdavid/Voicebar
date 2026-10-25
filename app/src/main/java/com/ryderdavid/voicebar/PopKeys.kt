@@ -38,8 +38,8 @@ class PopKeys(private val host: Host) {
         fun suggest(word: String)
         /** Back to the voice bar (the handle pulled down). */
         fun close()
-        /** The ⋮ key: the bar's menu, from the keyboard. */
-        fun menu()
+        /** The ⋮ key: the bar's menu, rising from [anchor] (the key, in bar coordinates). */
+        fun menu(anchor: android.graphics.RectF)
         /** Hand the field over to Gboard. */
         fun gboard()
         /**
@@ -372,7 +372,7 @@ class PopKeys(private val host: Host) {
             Kind.ENTER -> host.key(Bar.Key.ENTER, false)
             Kind.PAGE -> { page = k.to ?: Page.LETTERS; build() }
             Kind.SHIFT -> tapShift()
-            Kind.MENU -> host.menu()
+            Kind.MENU -> host.menu(android.graphics.RectF(k.rect))
             Kind.BACK, Kind.SPACER -> Unit
         }
     }

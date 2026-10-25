@@ -6,10 +6,12 @@ import org.json.JSONObject
 
 /**
  * The last [KEEP] dictations, both as heard and as typed: when cleanup goes wrong (or the text went
- * missing, or was held or copied instead), what you said can be pasted again from the ⋮ menu.
+ * missing, or was held or copied instead), what you said can be pasted again from the menu.
  * On the phone only; never exported.
  */
-class DictationHistory(private val store: ClipHistory.Store) {
+class DictationHistory(private val store: Store) {
+    interface Store { fun read(): String?; fun write(json: String) }
+
     data class Entry(val time: Long, val heard: String, val typed: String, val app: String = "")
 
     private val entries = ArrayList<Entry>()
@@ -55,7 +57,7 @@ class DictationHistory(private val store: ClipHistory.Store) {
         fun of(context: Context): DictationHistory = instance ?: synchronized(this) {
             instance ?: run {
                 val p = context.applicationContext.getSharedPreferences("dictation_history", Context.MODE_PRIVATE)
-                DictationHistory(object : ClipHistory.Store {
+                DictationHistory(object : Store {
                     override fun read() = p.getString("entries", null)
                     override fun write(json: String) { p.edit().putString("entries", json).apply() }
                 })

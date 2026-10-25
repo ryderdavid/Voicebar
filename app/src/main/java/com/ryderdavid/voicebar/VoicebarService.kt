@@ -378,6 +378,8 @@ class VoicebarService : InputMethodService(), Bar.Listener {
 
     override fun onCreate() {
         super.onCreate()
+        // the clipboard history is gone (1.7): what an earlier version kept goes too
+        runCatching { deleteSharedPreferences("clip_history") }
         CorrectionWatch.onCheck = { p, field -> learnOn && checkCorrections(p, field) }
     }
 
@@ -965,17 +967,9 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         val can = runCatching { clipHasText() }.getOrDefault(false)
         bar?.canPaste = can
         bar?.clipPreview = if (can) runCatching { clipStart() }.getOrNull() else null
-        bar?.clips = ClipHistory.of(this).all()
         bar?.dictations = DictationHistory.of(this).all()
     }
 
-    /** Something new on the clipboard (while Voicebar is the keyboard, or Voicebar's own copy): into the history. */
-    private fun rememberClip() {
-        runCatching {
-            val text = ClipHistory.textOf(this, getSystemService(ClipboardManager::class.java)?.primaryClip) ?: return
-            ClipHistory.of(this).add(text)
-        }
-    }
 
     /** The dictation just finished, as heard (before cleanup). */
     private var heardAll: String? = null
@@ -1003,22 +997,6 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         last?.let { onDictation(Bar.DictationAction.PASTE_TYPED, it.time) }
     }
 
-    override fun onClip(action: Bar.ClipAction, text: String) {
-        AppLog.log("menu", "clip $action")
-        val h = ClipHistory.of(this)
-        when (action) {
-            Bar.ClipAction.PASTE -> {
-                ownEdit()
-                keyDuringDictation()
-                currentInputConnection?.commitText(text, 1)
-            }
-            Bar.ClipAction.PIN -> h.setPinned(text, true)
-            Bar.ClipAction.UNPIN -> h.setPinned(text, false)
-            Bar.ClipAction.DELETE -> h.remove(text)
-        }
-        bar?.clips = h.all()
-    }
-
     /** The first few dozen characters on the clipboard, for the paste button while dictating. */
     private fun clipStart(): String? {
         val clip = getSystemService(ClipboardManager::class.java)?.primaryClip ?: return null
@@ -1026,7 +1004,7 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         return clip.getItemAt(0).coerceToText(this)?.toString()?.replace(Regex("\\s+"), " ")?.trim()?.take(80)?.ifBlank { null }
     }
 
-    private val clipListener = ClipboardManager.OnPrimaryClipChangedListener { rememberClip(); refreshCanPaste() }
+    private val clipListener = ClipboardManager.OnPrimaryClipChangedListener { refreshCanPaste() }
 
     /**
      * The app's own Send was pressed mid-dictation: the message went, with the words typed live in
@@ -1825,9 +1803,6 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     private fun copyDictation(text: String): Boolean = runCatching {
         val cm = getSystemService(ClipboardManager::class.java) ?: return false
         cm.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.dictation_clip_label), text))
-        // into the history too, so it never pushes out what was there before (and even if the listener's off)
-        ClipHistory.of(this).add(text)
-        bar?.clips = ClipHistory.of(this).all()
         true
     }.getOrDefault(false)
 

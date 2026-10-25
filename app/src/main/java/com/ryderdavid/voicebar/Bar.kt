@@ -11,7 +11,7 @@ object Bar {
     /** What one of the seven-button bar's own keys does. In picker order, bottom up: the typing keys nearest the thumb. */
     enum class ExtraKey(val pref: String) {
         SPACE("space"), BACKSPACE("backspace"), ENTER("enter"), PASTE("paste"), UNDO("undo"), SELECT_ALL("select_all"),
-        LAST_DICTATION("last_dictation"), FIX_LAST("fix_last"), MENU("menu");
+        LAST_DICTATION("last_dictation"), FIX_LAST("fix_last"), STYLE("style");
         companion object {
             fun of(pref: String?, default: ExtraKey = SPACE) = entries.firstOrNull { it.pref == pref } ?: default
         }
@@ -25,8 +25,6 @@ object Bar {
     fun quietMs(silenceMs: Long) = minOf(5_000L, silenceMs / 2)
 
     /** The bar's touches, reported to the service. */
-    /** What a tap or hold on a clipboard-history card asks for. */
-    enum class ClipAction { PASTE, PIN, UNPIN, DELETE }
     /**
      * A recent dictation in the ⋮ menu: paste it as typed, as heard (before cleanup), delete it, or
      * clean what was heard again and copy that (a tap on its card).
@@ -35,8 +33,6 @@ object Bar {
 
     interface Listener {
         fun onKey(key: Key, repeat: Boolean)
-        /** A clipboard-history card in the ⋮ menu: paste it, pin or unpin it, or delete it. */
-        fun onClip(action: ClipAction, text: String) {}
         /** A recent dictation (by its time) in the ⋮ menu. */
         fun onDictation(action: DictationAction, time: Long) {}
         /** The last-dictation key: type the most recent dictation again, as it was typed. */

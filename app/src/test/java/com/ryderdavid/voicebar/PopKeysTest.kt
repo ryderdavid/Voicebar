@@ -31,7 +31,7 @@ class PopKeysTest {
             override fun key(key: Bar.Key, repeat: Boolean) { out += if (repeat) "$key+" else key.name }
             override fun suggest(word: String) { out += "suggest:$word" }
             override fun close() { closed = true }
-            override fun menu() { out += "menu" }
+            override fun menu(anchor: android.graphics.RectF) { out += "menu" }
             override fun gboard() { out += "gboard" }
             override fun swipe(points: List<com.ryderdavid.voicebar.swipe.SwipeDecoder.Point>, keys: FloatArray, caps: Int) { swipes += Triple(points, keys, caps) }
         })

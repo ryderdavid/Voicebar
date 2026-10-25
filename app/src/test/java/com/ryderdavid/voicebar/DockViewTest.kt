@@ -33,7 +33,6 @@ class DockViewTest {
     private val edits = mutableListOf<Bar.EditAction>()
     private val talk = mutableListOf<String>()
     private val stick = mutableListOf<String>()
-    private val clipActions = mutableListOf<String>()
     private val dictationActions = mutableListOf<String>()
     private val typed = mutableListOf<String>()
     private var capitalize = false
@@ -70,7 +69,6 @@ class DockViewTest {
             override fun onStickStep(cols: Int, lines: Int, selecting: Boolean) { stick.add("step $cols $lines ${if (selecting) "sel" else "aim"}") }
             override fun onStickTap() { stick.add("tap") }
             override fun onStickSelect() { stick.add("select") }
-            override fun onClip(action: Bar.ClipAction, text: String) { clipActions.add("$action $text") }
             override fun onDictation(action: Bar.DictationAction, time: Long) { dictationActions.add("$action $time") }
             override fun onRepeatDictation() { dictationActions.add("repeat") }
             override fun onText(text: String) { typed.add(text) }
@@ -94,12 +92,12 @@ class DockViewTest {
         return PointF(r.centerX(), r.centerY())
     }
     private fun tap(act: DockView.Act, ch: Char = ' ') { val p = at(act, ch); touch(MotionEvent.ACTION_DOWN, p); touch(MotionEvent.ACTION_UP, p); idle(20) }
-    /** Draws a frame (so the tabs have places), then taps [tab] in the ⋮ menu. */
-    private fun openTab(tab: DockView.ClipTab) {
-        dock.draw(android.graphics.Canvas(android.graphics.Bitmap.createBitmap(dock.width.coerceAtLeast(1), dock.height.coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)))
-        val p = dock.testTabCenter(tab)!!
+    /** Taps ☰, then [k] in its list (a [DockView.MenuItem] or [DockView.MenuEdit]). */
+    private fun menu(k: Any) {
+        if (!dock.testMenu) { tap(DockView.Act.MORE); relayout() }
+        val p = assertNotNull(dock.testMenuAt(k), "$k is in the menu")
         touch(MotionEvent.ACTION_DOWN, p); touch(MotionEvent.ACTION_UP, p); idle(20)
-        assertEquals(tab, dock.clipTab)
+        relayout()
     }
     /** Pulls the keyboard's handle down, far enough to close it. */
     private fun pullKeysDown() {
@@ -137,48 +135,52 @@ class DockViewTest {
         relayout()
     }
 
-    @Test fun dockedHasNoCollapseKey() {
-        assertFalse(dock.testHas(DockView.Act.COLLAPSE))
+    @Test fun dockedIsNotCollapsible() {
         assertFalse(dock.testCollapsed)
         assertNull(dock.testCollapsedPill())
+        tap(DockView.Act.MORE); relayout()
+        assertFalse(DockView.MenuItem.COLLAPSE in dock.testMenuItems())
+        assertTrue(DockView.MenuItem.FLOAT in dock.testMenuItems())
     }
 
-    @Test fun floatingIsTheSameSevenKeysInAPillWithACollapseKeyAtTheFarRight() {
-        val docked = assertNotNull(dock.testItem(DockView.Act.MIC)).height()
+    @Test fun floatingIsASmallPillOfMenuCursorAbcVoiceAndOneOwnKey() {
+        val docked = assertNotNull(dock.testItem(DockView.Act.MIC))
         floating()
         assertEquals((52 * d).toInt(), dock.height, "the same height as the docked bar")
-        val order = listOf(DockView.Act.MORE, DockView.Act.SPACE_ALT, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.BACKSPACE, DockView.Act.ENTER, DockView.Act.COLLAPSE)
+        val order = listOf(DockView.Act.MORE, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.MIC, DockView.Act.ENTER)
         val rects = order.map { assertNotNull(dock.testItem(it), "$it") }
-        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.right < b.left, "in order, the collapse key last") }
-        rects.dropLast(1).forEach { assertEquals(rects[0].width(), it.width(), 0.5f) }
-        assertTrue(rects.last().width() < rects[0].width() * 0.75f, "the collapse key is the narrow one")
-        assertEquals(docked, rects[4].height(), 0.5f, "keys the same size as docked")
-        assertTrue(rects.first().left >= 8 * d + 6 * d - 1 && rects.last().right <= dock.width - 8 * d - 6 * d + 1, "clear of the screen's edges, in the bar's own padding")
+        rects.zipWithNext().forEach { (a, b) -> assertTrue(a.right < b.left, "☰ · Cursor · ABC · Voice · own key") }
+        rects.forEach { assertEquals(docked.width(), it.width(), 0.5f, "the docked keys' size") }
+        assertFalse(dock.testHas(DockView.Act.SPACE_ALT) || dock.testHas(DockView.Act.BACKSPACE), "just the one own key")
+        assertTrue(abs(rects[2].centerX() - dock.width / 2f) < 2 * d, "in the middle")
+        tap(DockView.Act.ENTER)
+        assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys, "the own key starts as Backspace")
         // dictating works the same, inside the pill
         tap(DockView.Act.MIC)
         relayout()
         assertTrue(dock.testTalking)
-        assertTrue(dock.testHas(DockView.Act.BACKSPACE) && dock.testHas(DockView.Act.ENTER) && dock.testHas(DockView.Act.COLLAPSE))
-        assertTrue(dock.testItem(DockView.Act.CURSOR)!!.left >= 8 * d)
+        assertTrue(dock.testHas(DockView.Act.ENTER) && dock.testHas(DockView.Act.CURSOR))
+        assertFalse(dock.testHas(DockView.Act.MORE), "☰ gives way to Cursor and ABC")
     }
 
-    @Test fun collapsingLeavesOnlyTheRecordPillAndTheArrowBringsTheBarBack() {
+    @Test fun collapsingFromTheMenuLeavesTheRecordPillAndItsMenuOpensTheBarAgain() {
         floating()
-        tap(DockView.Act.COLLAPSE)
-        relayout()
+        menu(DockView.MenuItem.COLLAPSE)
         assertTrue(dock.testCollapsed)
+        assertFalse(dock.testMenu)
         assertTrue(Prefs.get(activity).getBoolean(Prefs.BAR_COLLAPSED, false), "remembered")
-        for (a in listOf(DockView.Act.MORE, DockView.Act.SPACE_ALT, DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.BACKSPACE, DockView.Act.ENTER, DockView.Act.COLLAPSE))
-            assertFalse(dock.testHas(a), "$a is gone")
+        for (a in listOf(DockView.Act.CURSOR, DockView.Act.KEYBOARD, DockView.Act.ENTER)) assertFalse(dock.testHas(a), "$a is gone")
         val pill = assertNotNull(dock.testCollapsedPill())
         assertEquals(52 * d, pill.height(), 1f, "the bar's height")
-        assertTrue(pill.width() < 140 * d, "just the arrow and Voice: ${pill.width() / d} dp")
+        assertTrue(pill.width() < 140 * d, "just ☰ and Voice: ${pill.width() / d} dp")
         assertEquals(activity.resources.displayMetrics.heightPixels, dock.height, "the whole screen, see-through, so it can go anywhere")
-        assertTrue(pill.contains(at(DockView.Act.MIC).x, at(DockView.Act.MIC).y) && pill.contains(at(DockView.Act.EXPAND).x, at(DockView.Act.EXPAND).y))
-        tap(DockView.Act.EXPAND)
-        relayout()
+        assertTrue(pill.contains(at(DockView.Act.MIC).x, at(DockView.Act.MIC).y) && pill.contains(at(DockView.Act.MORE).x, at(DockView.Act.MORE).y))
+        tap(DockView.Act.MORE); relayout()
+        assertTrue(dock.testMenu)
+        assertEquals(DockView.MenuItem.EXPAND, dock.testMenuItems().first { it == DockView.MenuItem.EXPAND })
+        menu(DockView.MenuItem.EXPAND)
         assertFalse(dock.testCollapsed)
-        assertTrue(dock.testHas(DockView.Act.COLLAPSE) && dock.testHas(DockView.Act.MORE))
+        assertTrue(dock.testHas(DockView.Act.ENTER) && dock.testHas(DockView.Act.MORE))
         assertEquals((52 * d).toInt(), dock.height)
     }
 
@@ -226,7 +228,7 @@ class DockViewTest {
         assertTrue(wide.width() > small.width() * 2, "the recording pill: ${wide.width() / d} dp")
         assertTrue(wide.left >= 0 && wide.right <= dock.width, "on screen")
         assertEquals(small.centerY(), wide.centerY(), 1f, "in place")
-        assertFalse(dock.testHas(DockView.Act.EXPAND), "no arrow while recording")
+        assertFalse(dock.testHas(DockView.Act.MORE), "no ☰ while recording")
         tap(DockView.Act.MIC)
         idle(600)
         relayout()
@@ -426,6 +428,8 @@ class DockViewTest {
         val menu = keysMenuKey()
         touch(MotionEvent.ACTION_DOWN, menu); touch(MotionEvent.ACTION_UP, menu); idle(20)
         relayout()
+        assertTrue(dock.testMenu)
+        menu(DockView.MenuItem.DICTATIONS)
         assertEquals(DockView.Drawer.MENU, dock.drawer)
         assertFalse(dock.testTalking)
         tap(DockView.Act.MORE)
@@ -465,35 +469,25 @@ class DockViewTest {
         assertEquals<List<Any>>(listOf(Bar.Key.SPACE, Bar.Key.DELETE, Bar.Key.ENTER, Bar.Key.UNDO), keys)
         assertEquals(listOf(Bar.EditAction.PASTE, Bar.EditAction.SELECT_ALL), edits)
         assertEquals(listOf("repeat"), dictationActions)
-        assertEquals(DockView.Drawer.MENU, dock.drawer, "and set to Menu, it opens the menu")
+        assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null), "and set to Docked ↔ floating, it floats the bar")
     }
 
-    @Test fun allFourSideKeysAreOwnKeysAndStartAsTodaysBar() {
+    @Test fun theMenuKeyIsAlwaysTheMenuAndTheOtherThreeAreOwnKeys() {
         sevenButtons()
-        // as they were: ⋮ opens the menu, ↵ is Enter
+        // ☰ opens the list and closes it; a hold doesn't offer choices
         tap(DockView.Act.MORE)
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
+        assertTrue(dock.testMenu)
         relayout()
         tap(DockView.Act.MORE)
-        assertEquals(DockView.Drawer.NONE, dock.drawer)
+        assertFalse(dock.testMenu)
+        val more = at(DockView.Act.MORE)
+        touch(MotionEvent.ACTION_DOWN, more); idle(400)
+        assertFalse(dock.testPicker, "☰ isn't an own key")
+        touch(MotionEvent.ACTION_UP, more); idle(20)
+        if (dock.testMenu) { tap(DockView.Act.MORE) }
         relayout()
         tap(DockView.Act.ENTER)
         assertEquals<List<Any>>(listOf(Bar.Key.ENTER), keys)
-        // ⋮ held: its choices, lined up with its left edge; pick Enter
-        val more = at(DockView.Act.MORE)
-        touch(MotionEvent.ACTION_DOWN, more)
-        idle(400)
-        assertTrue(dock.testPicker, "a hold on ⋮ opens the choices")
-        relayout()
-        val enter = assertNotNull(dock.testPickerRow(Bar.ExtraKey.ENTER))
-        assertTrue(enter.x >= more.x - 1, "the column starts at the key's left edge")
-        touch(MotionEvent.ACTION_MOVE, enter); touch(MotionEvent.ACTION_UP, enter); idle(20)
-        assertEquals("enter", Prefs.get(activity).getString(Prefs.BAR_KEY_MENU, null))
-        assertEquals<List<Any>>(listOf(Bar.Key.ENTER), keys, "set, not run")
-        relayout()
-        tap(DockView.Act.MORE)
-        assertEquals<List<Any>>(listOf(Bar.Key.ENTER, Bar.Key.ENTER), keys, "⋮'s key is Enter now")
-        assertEquals(DockView.Drawer.NONE, dock.drawer)
         // ↵ held: its choices line up with its right edge; pick Undo
         val ret = at(DockView.Act.ENTER)
         touch(MotionEvent.ACTION_DOWN, ret)
@@ -508,30 +502,23 @@ class DockViewTest {
         assertEquals(Bar.Key.UNDO, keys.last())
     }
 
-    @Test fun aMenuKeyRightOfVoiceOpensTheMenuAndPausesADictation() {
-        Prefs.get(activity).edit().putString(Prefs.BAR_KEY_ENTER, "menu")
-            .putString(Prefs.BAR_KEY_MENU, "paste").commit()
+    @Test fun aStyleKeyFlipsBetweenDockedAndFloating() {
+        Prefs.get(activity).edit().putString(Prefs.BAR_KEY_ENTER, "style").putString(Prefs.BAR_KEY_FLOAT, "style").commit()
         dock.reloadSettings()
         relayout()
         tap(DockView.Act.ENTER)
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
         relayout()
-        tap(DockView.Act.ENTER)
-        assertEquals(DockView.Drawer.NONE, dock.drawer)
-        // mid-dictation it stays on the bar (the right two do) and pauses, as Cursor and ABC do
-        relayout()
-        tap(DockView.Act.MIC)
-        relayout()
-        assertTrue(dock.testHas(DockView.Act.ENTER))
+        assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
+        assertFalse(dock.testHas(DockView.Act.SPACE_ALT), "the floating pill")
         tap(DockView.Act.ENTER)
         relayout()
-        assertEquals(listOf("start", "polish"), talk)
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
-        tap(DockView.Act.ENTER)
-        relayout()
-        assertEquals(DockView.Drawer.NONE, dock.drawer)
-        assertEquals(listOf("start", "polish", "start"), talk, "closing it listens again")
-        assertTrue(edits.isEmpty(), "the far-left Paste wasn't touched")
+        assertEquals(Prefs.BAR_STYLE_DOCKED, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
+        assertTrue(dock.testHas(DockView.Act.SPACE_ALT), "docked again")
+        // the menu does it too
+        menu(DockView.MenuItem.FLOAT)
+        assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
+        menu(DockView.MenuItem.DOCK)
+        assertEquals(Prefs.BAR_STYLE_DOCKED, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
     }
 
     @Test fun onlyTheSpaceKeySlidesTheCursor() {
@@ -629,27 +616,44 @@ class DockViewTest {
         assertFalse(dock.testHas(DockView.Act.TALK_PASTE))
     }
 
-    @Test fun clipboardHistoryIsInTheMenu() {
-        dock.clips = listOf(ClipHistory.Clip("Meet at the trailhead", 2), ClipHistory.Clip("older", 1))
+    @Test fun theMenuIsAListWithEditKeysAndPasteFromTheClipboard() {
         tap(DockView.Act.MORE)
         relayout()
-        openTab(DockView.ClipTab.CLIPS)
-        val row = dock.testItem(DockView.Act.CLIP_ROW)!!
-        // the first of three cards
-        val first = PointF(row.left + row.width() / 6, row.centerY())
-        touch(MotionEvent.ACTION_DOWN, first); touch(MotionEvent.ACTION_UP, first); idle(20)
-        assertEquals(listOf("PASTE Meet at the trailhead"), clipActions)
-        assertEquals(DockView.Drawer.NONE, dock.drawer)
+        assertTrue(dock.testMenu)
+        assertEquals(DockView.Drawer.NONE, dock.drawer, "a list, not the old panel")
+        assertEquals(listOf(DockView.MenuItem.PASTE, DockView.MenuItem.DICTATIONS, DockView.MenuItem.FLOAT, DockView.MenuItem.SWITCH, DockView.MenuItem.SETTINGS), dock.testMenuItems())
+        // the edit keys leave it open; cut and copy want a selection
+        menu(DockView.MenuEdit.COPY)
+        assertEquals(emptyList(), edits, "nothing selected: nothing to copy")
+        menu(DockView.MenuEdit.SELECT_ALL)
+        dock.hasSelection = true
+        menu(DockView.MenuEdit.COPY)
+        menu(DockView.MenuEdit.UNDO)
+        assertEquals(listOf(Bar.EditAction.SELECT_ALL, Bar.EditAction.COPY), edits)
+        assertEquals<List<Any>>(listOf(Bar.Key.UNDO), keys)
+        assertTrue(dock.testMenu, "still open")
+        // Paste: whatever's on the clipboard, copied anywhere; then the list closes
+        dock.canPaste = false
+        menu(DockView.MenuItem.PASTE)
+        assertEquals(2, edits.size, "nothing to paste")
+        dock.canPaste = true
+        dock.clipPreview = "Meet at the trailhead"
+        menu(DockView.MenuItem.PASTE)
+        assertEquals(Bar.EditAction.PASTE, edits.last())
+        assertFalse(dock.testMenu)
+        // a tap anywhere else closes it
+        tap(DockView.Act.MORE); relayout()
+        assertTrue(dock.testMenu)
+        val far = PointF(dock.width - 4f, at(DockView.Act.MIC).y)
+        touch(MotionEvent.ACTION_DOWN, far); touch(MotionEvent.ACTION_UP, far); idle(20)
+        assertFalse(dock.testMenu)
+        assertEquals(emptyList(), talk, "and that tap did nothing else")
     }
 
     @Test fun recentDictationsPasteAsTypedOrAsSaid() {
         dock.dictations = listOf(DictationHistory.Entry(42, "um so tell shauna yes", "Tell Siona yes."))
-        tap(DockView.Act.MORE)
-        relayout()
-        dock.draw(android.graphics.Canvas(android.graphics.Bitmap.createBitmap(dock.width.coerceAtLeast(1), dock.height.coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)))
-        val tab = dock.testTabCenter(DockView.ClipTab.DICTATIONS)!!
-        touch(MotionEvent.ACTION_DOWN, tab); touch(MotionEvent.ACTION_UP, tab); idle(20)
-        assertEquals(DockView.ClipTab.DICTATIONS, dock.clipTab)
+        menu(DockView.MenuItem.DICTATIONS)
+        assertEquals(DockView.Drawer.MENU, dock.drawer)
         val row = dock.testItem(DockView.Act.CLIP_ROW)!!
         val card = PointF(row.left + row.width() / 6, row.centerY())
         // hold, then the left half: as said
@@ -659,35 +663,18 @@ class DockViewTest {
         assertEquals(listOf("PASTE_HEARD 42"), dictationActions)
     }
 
-    @Test fun dictationsComeFirstAndATapCleansOneAgainWithTheMenuLeftOpen() {
+    @Test fun aTapCleansADictationAgainWithThePaneLeftOpen() {
         dock.dictations = listOf(DictationHistory.Entry(42, "um so tell shauna yes", "Tell Siona yes."))
-        tap(DockView.Act.MORE)
-        relayout()
-        assertEquals(DockView.ClipTab.DICTATIONS, dock.clipTab, "dictations is the tab the menu opens on")
+        menu(DockView.MenuItem.DICTATIONS)
         val row = dock.testItem(DockView.Act.CLIP_ROW)!!
         val card = PointF(row.left + row.width() / 6, row.centerY())
         touch(MotionEvent.ACTION_DOWN, card); touch(MotionEvent.ACTION_UP, card); idle(20)
         assertEquals(listOf("RECLEAN 42"), dictationActions)
-        assertEquals(DockView.Drawer.MENU, dock.drawer, "the menu stays open to show it working")
+        assertEquals(DockView.Drawer.MENU, dock.drawer, "the pane stays open to show it working")
         // while one is being cleaned, another tap waits
         dock.recleaning = 42
         touch(MotionEvent.ACTION_DOWN, card); touch(MotionEvent.ACTION_UP, card); idle(20)
         assertEquals(listOf("RECLEAN 42"), dictationActions)
-    }
-
-    @Test fun holdingAClipOffersPinAndDelete() {
-        dock.clips = listOf(ClipHistory.Clip("Meet at the trailhead", 2))
-        tap(DockView.Act.MORE)
-        relayout()
-        openTab(DockView.ClipTab.CLIPS)
-        val row = dock.testItem(DockView.Act.CLIP_ROW)!!
-        val card = PointF(row.left + row.width() / 6, row.centerY())
-        touch(MotionEvent.ACTION_DOWN, card); idle(600); touch(MotionEvent.ACTION_UP, card); idle(20)
-        assertTrue(clipActions.isEmpty(), "a hold only opens the options")
-        // left half pins
-        val pin = PointF(row.left + row.width() / 12, row.centerY())
-        touch(MotionEvent.ACTION_DOWN, pin); touch(MotionEvent.ACTION_UP, pin); idle(20)
-        assertEquals(listOf("PIN Meet at the trailhead"), clipActions)
     }
 
     @Test fun backspaceWorksWhileDictating() {
@@ -989,9 +976,11 @@ class DockViewTest {
         assertFalse(dock.testHas(DockView.Act.KEYBOARD) || dock.testHas(DockView.Act.MIC) || dock.testHas(DockView.Act.MORE))
         val menuKey = dock.testKeys.testKind(PopKeys.Kind.MENU)!!
         assertTrue(menuKey.bottom > 0f, "the ⋮ key is in the bar's row")
-        // ⋮ opens the bar's menu, and closing the menu brings the keyboard back
+        // ⋮ opens the bar's menu over the keyboard; its dictations close back to the keyboard
         touch(MotionEvent.ACTION_DOWN, keysMenuKey()); touch(MotionEvent.ACTION_UP, keysMenuKey()); idle(20)
         relayout()
+        assertTrue(dock.testMenu)
+        menu(DockView.MenuItem.DICTATIONS)
         assertEquals(DockView.Drawer.MENU, dock.drawer)
         tap(DockView.Act.MORE)
         relayout()
@@ -1117,15 +1106,24 @@ class DockViewTest {
     }
 
 
-    @Test fun theOverflowMenuOpensSettingsAndSwitches() {
-        tap(DockView.Act.MORE)
-        relayout()
-        assertEquals(DockView.Drawer.MENU, dock.drawer)
-        tap(DockView.Act.TILE_SETTINGS)
+    @Test fun theMenuOpensSettingsAndSwitches() {
+        menu(DockView.MenuItem.SETTINGS)
         assertTrue(settings)
-        tap(DockView.Act.MORE); relayout()
-        tap(DockView.Act.TILE_SWITCH)
+        assertFalse(dock.testMenu)
+        menu(DockView.MenuItem.SWITCH)
         assertTrue(picker)
+    }
+
+    @Test fun theKeyboardsMenuKeyOpensTheSameList() {
+        tap(DockView.Act.KEYBOARD)
+        relayout()
+        val k = keysMenuKey()
+        touch(MotionEvent.ACTION_DOWN, k); touch(MotionEvent.ACTION_UP, k); idle(20)
+        relayout()
+        assertTrue(dock.testMenu)
+        assertEquals(DockView.Drawer.KEYS, dock.drawer, "over the keyboard, which stays up")
+        val paste = assertNotNull(dock.testMenuAt(DockView.MenuItem.PASTE))
+        assertTrue(paste.y < k.y && paste.y >= 0, "above the key, on screen")
     }
 
     @Test fun everyStateDrawsMidAnimationToo() {
@@ -1138,5 +1136,6 @@ class DockViewTest {
         dock.hideVoice(); dock.showMessage("Add an ElevenLabs key"); frames(); dock.hideVoice(); frames()
         tap(DockView.Act.CURSOR); relayout(); frames()
         tap(DockView.Act.CURSOR); frames(); tap(DockView.Act.MORE); relayout(); frames()
+        menu(DockView.MenuItem.DICTATIONS); frames()
     }
 }

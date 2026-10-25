@@ -43,7 +43,7 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.SpaceBar
 import androidx.compose.material.icons.rounded.Apps
@@ -398,8 +398,8 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
     val setBarKey = { v: String -> barKey = v; prefs.edit { putString(Prefs.BAR_KEY, v) } }
     var barKeyRight by remember { mutableStateOf(prefs.getString(Prefs.BAR_KEY_RIGHT, Prefs.DEFAULT_BAR_KEY_RIGHT) ?: Prefs.DEFAULT_BAR_KEY_RIGHT) }
     val setBarKeyRight = { v: String -> barKeyRight = v; prefs.edit { putString(Prefs.BAR_KEY_RIGHT, v) } }
-    var barKeyMenu by remember { mutableStateOf(prefs.getString(Prefs.BAR_KEY_MENU, Prefs.DEFAULT_BAR_KEY_MENU) ?: Prefs.DEFAULT_BAR_KEY_MENU) }
-    val setBarKeyMenu = { v: String -> barKeyMenu = v; prefs.edit { putString(Prefs.BAR_KEY_MENU, v) } }
+    var barKeyFloat by remember { mutableStateOf(prefs.getString(Prefs.BAR_KEY_FLOAT, Prefs.DEFAULT_BAR_KEY_FLOAT) ?: Prefs.DEFAULT_BAR_KEY_FLOAT) }
+    val setBarKeyFloat = { v: String -> barKeyFloat = v; prefs.edit { putString(Prefs.BAR_KEY_FLOAT, v) } }
     var barKeyEnter by remember { mutableStateOf(prefs.getString(Prefs.BAR_KEY_ENTER, Prefs.DEFAULT_BAR_KEY_ENTER) ?: Prefs.DEFAULT_BAR_KEY_ENTER) }
     val setBarKeyEnter = { v: String -> barKeyEnter = v; prefs.edit { putString(Prefs.BAR_KEY_ENTER, v) } }
     var barStyle by remember { mutableStateOf(prefs.getString(Prefs.BAR_STYLE, Prefs.DEFAULT_BAR_STYLE) ?: Prefs.DEFAULT_BAR_STYLE) }
@@ -420,16 +420,16 @@ private fun LookPage(setup: SettingsActivity.Setup, onBack: () -> Unit) {
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         androidx.compose.ui.viewinterop.AndroidView(
-                            factory = { ctx -> DockView(ctx, null).apply { showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter, style = barStyle) } },
-                            update = { it.showAsPreview(key = barKey, rightKey = barKeyRight, menuKey = barKeyMenu, enterKey = barKeyEnter, style = barStyle) },
+                            factory = { ctx -> DockView(ctx, null).apply { showAsPreview(key = barKey, rightKey = barKeyRight, enterKey = barKeyEnter, style = barStyle, floatKey = barKeyFloat) } },
+                            update = { it.showAsPreview(key = barKey, rightKey = barKeyRight, enterKey = barKeyEnter, style = barStyle, floatKey = barKeyFloat) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 },
-                { OwnKeyRow(stringResource(R.string.bar_key_slot_menu), Bar.ExtraKey.of(barKeyMenu, Bar.ExtraKey.MENU), setBarKeyMenu) },
                 { OwnKeyRow(stringResource(R.string.bar_key_slot_left), Bar.ExtraKey.of(barKey), setBarKey) },
                 { OwnKeyRow(stringResource(R.string.bar_key_slot_right), Bar.ExtraKey.of(barKeyRight, Bar.ExtraKey.BACKSPACE), setBarKeyRight) },
                 { OwnKeyRow(stringResource(R.string.bar_key_slot_enter), Bar.ExtraKey.of(barKeyEnter, Bar.ExtraKey.ENTER), setBarKeyEnter) },
+                { OwnKeyRow(stringResource(R.string.bar_key_slot_float), Bar.ExtraKey.of(barKeyFloat, Bar.ExtraKey.BACKSPACE), setBarKeyFloat) },
             ))
             item { Footnote(stringResource(R.string.bar_key_right_footnote)) }
         }
@@ -539,7 +539,7 @@ private fun ownKeyIcon(key: Bar.ExtraKey) = when (key) {
     Bar.ExtraKey.SELECT_ALL -> Icons.Rounded.SelectAll
     Bar.ExtraKey.LAST_DICTATION -> Icons.Rounded.History
     Bar.ExtraKey.FIX_LAST -> Icons.Rounded.AutoFixHigh
-    Bar.ExtraKey.MENU -> Icons.Rounded.MoreVert
+    Bar.ExtraKey.STYLE -> Icons.Rounded.PictureInPictureAlt
 }
 
 private val OWN_KEY_CHOICES = listOf(
@@ -551,7 +551,7 @@ private val OWN_KEY_CHOICES = listOf(
     Bar.ExtraKey.SELECT_ALL to (R.string.bar_key_select_all to R.string.bar_key_select_all_summary),
     Bar.ExtraKey.LAST_DICTATION to (R.string.bar_key_last to R.string.bar_key_last_summary),
     Bar.ExtraKey.FIX_LAST to (R.string.dock_fix_offer to R.string.bar_key_fix_summary),
-    Bar.ExtraKey.MENU to (R.string.bar_key_menu to R.string.bar_key_menu_summary),
+    Bar.ExtraKey.STYLE to (R.string.bar_key_style to R.string.bar_key_style_summary),
 )
 
 @Composable
