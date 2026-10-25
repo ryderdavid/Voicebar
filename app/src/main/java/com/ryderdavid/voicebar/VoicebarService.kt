@@ -145,13 +145,23 @@ class VoicebarService : InputMethodService(), Bar.Listener {
                     bar?.dictations = DictationHistory.of(this@VoicebarService).all()
                     AppLog.log("result", "heard " + AppLog.excerpt(heardAll ?: text) + " → " + AppLog.excerpt(text) +
                         " toClipboard=$toClipboard field=${hasTextField()} hold=${guard.hold(endedBySilence)} live=$liveTyping")
-                    if (toClipboard || !hasTextField()) {
-                        // nowhere to type it: the words go on the clipboard to paste wherever they're wanted
+                    if (!hasTextField()) {
+                        // nowhere to type it right now: try to get back to the text box, and only then
+                        // put the words on the clipboard, to paste wherever they're wanted
                         val words = Dictionary.of(this@VoicebarService).applySure(text).trim()
-                        sendAfterTalk = false
-                        if (words.isNotEmpty() && copyDictation(words)) bar?.showMessage(getString(R.string.dictation_copied))
+                        val toBox = { toClipboard = false; deliver(text) }
+                        val toClip = {
+                            sendAfterTalk = false
+                            if (words.isNotEmpty() && copyDictation(words)) bar?.showMessage(getString(R.string.dictation_copied))
+                        }
+                        if (askForField()) awaitField(REGAIN_FINISH_MS, toBox, toClip) else toClip()
                         return
                     }
+                    deliver(text)
+                }
+
+                /** The finished dictation into the text box (there is one). */
+                private fun deliver(text: String) {
                     // fitted to its spot when it goes into the middle of text: capitals, the closing mark, leftover words
                     val fit = Infill.fit(Dictionary.of(this@VoicebarService).applySure(text), aroundCursor, fieldCleaner?.seam ?: Infill.Seam())
                     if (fit.notes.isNotEmpty()) AppLog.log("infill", fit.notes.joinToString("; "))
@@ -1105,6 +1115,35 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     }
 
     private var fieldKey: String? = null
+    /** The last real text box's app and hint, to focus it again when Voice is tapped without one. */
+    private var lastField: Pair<String, String?>? = null
+    /** Voice was tapped with no text box: the box was asked back, and this is the deadline to start anyway. */
+    private var regainUntil = 0L
+
+    /**
+     * No text box to type into: ask the app (through the accessibility service) to focus its text box
+     * again, the last one Voicebar was in if it's on screen. True when it was asked.
+     */
+    private fun askForField(): Boolean {
+        val pkg = currentInputEditorInfo?.packageName ?: lastField?.first
+        val hint = lastField?.takeIf { it.first == pkg }?.second
+        val asked = GboardButtonService.running?.refocusField(pkg, hint) == true
+        AppLog.log("field", "no text box to type into (in $pkg): " +
+            if (asked) "asked the app to focus its text box again" else "nothing to focus (no text box on screen, or the accessibility service is off)")
+        return asked
+    }
+
+    /** Waits (up to [ms]) for a text box to come back, then [then]; [otherwise] if none does. */
+    private fun awaitField(ms: Long, then: () -> Unit, otherwise: () -> Unit) {
+        val until = SystemClock.uptimeMillis() + ms
+        sendHandler.post(object : Runnable {
+            override fun run() = when {
+                hasTextField() -> { AppLog.log("field", "back in the text box"); then() }
+                SystemClock.uptimeMillis() >= until -> { AppLog.log("field", "no text box came back"); otherwise() }
+                else -> { sendHandler.postDelayed(this, 80); Unit }
+            }
+        })
+    }
 
     /**
      * Some apps (browsers especially) move between fields by restarting input on the same view,
@@ -1120,6 +1159,9 @@ class VoicebarService : InputMethodService(), Bar.Listener {
             strippedTail = null
         }
         fieldKey = key
+        // the last real text box: what to get back to when the keyboard finds itself without one
+        if (attribute != null && attribute.inputType != InputType.TYPE_NULL && attribute.packageName != null)
+            lastField = attribute.packageName to attribute.hintText?.toString()
         // switched here from Gboard's Voicebar button: make sure the bar actually shows. With a
         // physical keyboard attached, Android switches keyboards but doesn't re-show the new one,
         // which would leave the field with no keyboard at all
@@ -1624,6 +1666,14 @@ class VoicebarService : InputMethodService(), Bar.Listener {
             return false
         }
         if (dictation.dictating) return false // still finishing the last one
+        // no text box (the app hasn't connected its box to the keyboard, or it went): get back to it
+        // first, then start listening into it; if it doesn't come back, listen anyway (to the clipboard)
+        val now = SystemClock.uptimeMillis()
+        if (!hasTextField() && now >= regainUntil + 2_000L && askForField()) {
+            regainUntil = now + REGAIN_MS
+            awaitField(REGAIN_MS, then = { bar?.startVoice() }, otherwise = { bar?.startVoice() })
+            return false
+        }
         // dictating by hand: hands-free mode lets go of the microphone
         if (com.ryderdavid.voicebar.voice.HandsFreeStart.active) com.ryderdavid.voicebar.voice.HandsFreeStart.stop()
         // a new dictation: the last one's corrections, if any, are in by now
@@ -2005,6 +2055,10 @@ private const val SPEECH_WARM_SLOW_MS = 1_500L
 private const val SEND_FINDER_WAIT_MS = 4_000L
 /** The last look before sending: messages up to this long, and no longer than this wait. */
 private const val SEND_CHECK_MAX = 5_000
+/** Voice tapped with no text box: how long to wait for the box to come back before listening anyway. */
+private const val REGAIN_MS = 1_000L
+/** A dictation finished with no text box: how long to wait for it before the clipboard. */
+private const val REGAIN_FINISH_MS = 1_500L
 /** The most text a fix by voice sends: a long email, not a document. */
 private const val FIX_MAX = 8_000
 private const val SEND_CHECK_TIMEOUT_MS = 4_000L

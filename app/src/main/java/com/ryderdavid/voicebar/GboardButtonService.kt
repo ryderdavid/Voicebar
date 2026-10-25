@@ -282,6 +282,29 @@ class GboardButtonService : AccessibilityService() {
         if (ok) hideAll()
     }
 
+    /**
+     * The text field the keyboard was meant for, focused again: a tap on it, which also brings back
+     * its connection to the keyboard. In [pkg]'s windows only: the field with [hint] if there is one,
+     * else the focused one, else the lowest on screen (a chat's message box). Never a password field.
+     * False when there's none to focus. Blocking IPC, but short.
+     */
+    fun refocusField(pkg: String?, hint: String?): Boolean = runCatching {
+        val fields = ArrayList<AccessibilityNodeInfo>()
+        for (w in windows) {
+            if (w.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+            val r = w.root ?: continue
+            val p = r.packageName?.toString()
+            if (p == packageName || (pkg != null && p != pkg)) continue
+            flatten(r, cap = 2000).filterTo(fields) { it.isEditable && it.isVisibleToUser && !it.isPassword }
+        }
+        val bounds = Rect()
+        val i = FieldPick.choose(fields.map { it.getBoundsInScreen(bounds); FieldPick.Box(it.hintText?.toString(), it.isFocused, bounds.bottom) }, hint)
+        if (i < 0) return@runCatching false
+        val target = fields[i]
+        target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        target.performAction(AccessibilityNodeInfo.ACTION_CLICK) || target.isFocused
+    }.getOrDefault(false)
+
     /** The focused text field's text, or null (none, or a password). */
     fun focusedText(): String? = runCatching {
         val n = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null

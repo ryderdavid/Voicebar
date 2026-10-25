@@ -50,6 +50,8 @@ Any of them switches back and starts dictation right away. If the service is off
 
 While you're dictating (or saying what to fix), the screen stays on, so a long dictation isn't cut off by the screen dimming or locking.
 
+If Voice is tapped while the app hasn't connected a text box to the keyboard (it happens: the keyboard is up, but there's nothing to type into), Voicebar first asks the app to focus its text box again (the one it was last in, else the focused one, else the lowest on screen) through the accessibility service, waits up to a second for it, then listens into it. A dictation that finishes with no text box gets the same try, for up to 1.5 s, before its words go to the clipboard. Settings ▸ Logs shows each try ("field: …").
+
 **Type as you speak** (default): the words go straight into the text field as the keyboard's draft and are rewritten in place as the recognizer firms them up; the polished text replaces the draft in one step.
 - Press a key mid-dictation and what's typed so far stays; later words continue after the key, and only they get polished.
 - Tap in the text or select something mid-dictation and the dictation stops right there and finishes in place: the polish replaces the draft while your cursor or selection stays exactly where you put it. The dictation never pulls the cursor back.
