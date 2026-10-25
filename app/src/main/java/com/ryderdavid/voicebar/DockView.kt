@@ -379,7 +379,12 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private var roomFor = Drawer.NONE
     /** The drawer's room stays while a closing panel shrinks back into its pill. */
     private var drawerRoom = false
-    private val barTop get() = if (freeFloat) floatTop() else height - bottomInset - barH
+    private val barTop get() = when {
+        freeFloat -> floatTop()
+        // a settings preview of the floating pill: in the middle of its room
+        preview && inPill -> (height - barH) / 2
+        else -> height - bottomInset - barH
+    }
 
     /**
      * The open floating pill's top, in view coordinates: parked at the bottom (the app above it), or
@@ -488,7 +493,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             return
         }
         val room = drawer != Drawer.NONE || drawerRoom
-        setMeasuredDimension(w, ((if (room) drawerPx else 0f) + floatRoom() + barH + bottomInset).toInt())
+        // a settings preview of the floating pill gets room above and below, for its edge and shadow
+        val previewRoom = if (preview && inPill) 2 * dp(PREVIEW_ROOM_DP) else 0f
+        setMeasuredDimension(w, ((if (room) drawerPx else 0f) + floatRoom() + barH + bottomInset + previewRoom).toInt())
     }
 
     /**
@@ -3483,6 +3490,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         /** Where the collapsed pill starts: on the right, above where most apps put their message box and Send. */
         const val DEFAULT_PILL_FX = 0.82f
         const val DEFAULT_PILL_FY = 0.74f
+        /** Above and below the floating pill in a settings preview. */
+        const val PREVIEW_ROOM_DP = 14f
         /** The upright column dropped this close to a side edge snaps against it. */
         const val SNAP_DP = 48f
         /** The upright column's round keys. */

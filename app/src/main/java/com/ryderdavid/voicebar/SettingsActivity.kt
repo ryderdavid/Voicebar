@@ -491,7 +491,7 @@ private fun BarStyleOption(title: String, summary: String, style: String, select
             androidx.compose.ui.viewinterop.AndroidView(
                 factory = { ctx -> DockView(ctx, null).apply { showAsPreview(style = style) } },
                 update = { it.showAsPreview(style = style) },
-                modifier = Modifier.fillMaxWidth().padding(vertical = if (style == Prefs.BAR_STYLE_FLOATING) 6.dp else 0.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

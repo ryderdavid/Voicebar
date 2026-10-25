@@ -79,6 +79,10 @@ class RenderSettingsTest {
     @Config(qualifiers = "w454dp-h900dp-port-440dpi")
     @Test fun millennialEverywhere() = renderPage("millennial-everywhere", Page.LANGUAGE) { putBoolean(Prefs.MILLENNIAL_IN_SEARCH, true); putBoolean(Prefs.MILLENNIAL_IN_ALL, true) }
 
+    /** The Look page with the floating style chosen: its previews show the pill with room around it. */
+    @Config(qualifiers = "w454dp-h1400dp-port-440dpi")
+    @Test fun lookFloating() = renderPage("look-floating", Page.LOOK) { putString(Prefs.BAR_STYLE, Prefs.BAR_STYLE_FLOATING) }
+
     private fun renderLook(name: String) = renderPage(name, Page.LOOK) { }
 
     private fun renderPage(name: String, page: Page, prefs: android.content.SharedPreferences.Editor.() -> Unit) {
