@@ -72,5 +72,13 @@ class WordSuggester(
          */
         fun spaceAfterSwipe(before: CharSequence?, swiped: String?, typed: String): Boolean =
             swiped != null && typed.length == 1 && typed[0].isLetterOrDigit() && currentWord(before) == swiped
+
+        /**
+         * How much ⌫ takes back right after a swipe, as Gboard does: all of what the swipe [added]
+         * (the word, and the space it put before it) when the text before the cursor still ends
+         * with it; 0 (one letter, as usual) when it doesn't.
+         */
+        fun swipeToDelete(before: CharSequence?, added: String?): Int =
+            if (!added.isNullOrEmpty() && before != null && before.endsWith(added)) added.length else 0
     }
 }

@@ -62,4 +62,13 @@ class WordSuggesterTest {
         assertTrue(!w.spaceAfterSwipe("I said hello ", "hello", "t"), "a space already")
         assertTrue(!w.spaceAfterSwipe("I said hello", null, "t"), "typed, not swiped")
     }
+
+    @Test fun backspaceRightAfterASwipeTakesTheWholeWordBack() {
+        val w = WordSuggester
+        kotlin.test.assertEquals(6, w.swipeToDelete(" hello", " hello"), "the word and the space the swipe put before it")
+        kotlin.test.assertEquals(5, w.swipeToDelete("Hello", "Hello"), "at the start of the field, no space")
+        kotlin.test.assertEquals(0, w.swipeToDelete(" hell", " hello"), "the text changed since: one letter")
+        kotlin.test.assertEquals(0, w.swipeToDelete(" hello", null), "typed, not swiped")
+        kotlin.test.assertEquals(0, w.swipeToDelete(null, " hello"), "nothing readable")
+    }
 }

@@ -575,6 +575,8 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
         selStart = newSelStart
         selEnd = newSelEnd
+        // the cursor went somewhere other than the end of the swiped word: ⌫ is one letter again
+        if (swipeEnd >= 0 && (newSelStart != swipeEnd || newSelEnd != swipeEnd)) swipeAdded = null
         if (stick.active && stick.onSelection(newSelStart, newSelEnd)) return // the joystick's own marker
         bar?.hasSelection = newSelStart >= 0 && newSelEnd >= 0 && newSelStart != newSelEnd
         // the cursor back at the very start mid-dictation: the app may have sent the message itself
@@ -642,6 +644,15 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     /** The word a swipe just typed, and the other words it might have been (shown over the keyboard). */
     private var lastSwipe: Pair<String, List<String>>? = null
 
+    /**
+     * What the last swipe put in (its space and the word) while nothing else has happened since:
+     * ⌫ takes all of it back at once, as in Gboard. Anything else (a key, a suggestion, the cursor
+     * moving) and ⌫ deletes letter by letter again.
+     */
+    private var swipeAdded: String? = null
+    /** Where the cursor was left after [swipeAdded], when known (-1 otherwise). */
+    private var swipeEnd = -1
+
     override fun onSwipe(points: List<com.ryderdavid.voicebar.swipe.SwipeDecoder.Point>, keys: FloatArray, caps: Int) {
         swipeWork.execute {
             val s = swiper
@@ -661,7 +672,10 @@ class VoicebarService : InputMethodService(), Bar.Listener {
                 val before = ic.getTextBeforeCursor(1, 0)
                 val sep = if (before.isNullOrEmpty() || before.last().isWhitespace() || before.last() in "([{\"“‘") "" else " "
                 val word = cased(best)
+                val atCursor = if (selStart >= 0 && selStart == selEnd) selStart else -1
                 ic.commitText(sep + word, 1)
+                swipeAdded = sep + word
+                swipeEnd = if (atCursor >= 0) atCursor + (sep + word).length else -1
                 suggester.learn(best)
                 lastFix = null
                 suggestionSpace = false
@@ -691,6 +705,7 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         val before = ic.getTextBeforeCursor(48, 0)?.toString().orEmpty()
         val now = SystemClock.uptimeMillis()
         lastFix = null
+        swipeAdded = null
         val afterSuggestion = suggestionSpace
         suggestionSpace = false
         // a letter straight after a swiped word is the next word: a space between them
@@ -732,6 +747,7 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         ownEdit()
         keyDuringDictation()
         val typed = com.ryderdavid.voicebar.voice.WordSuggester.currentWord(ic.getTextBeforeCursor(48, 0))
+        swipeAdded = null
         ic.beginBatchEdit()
         if (typed.isNotEmpty()) ic.deleteSurroundingText(typed.length, 0)
         ic.commitText("$word ", 1)
@@ -739,6 +755,24 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         suggester.learn(word)
         suggestionSpace = true
         lastFix = null
+    }
+
+    /** ⌫ right after a swipe: the whole word goes, and the space the swipe put before it. */
+    private fun deleteSwipe(): Boolean {
+        val added = swipeAdded ?: return false
+        swipeAdded = null
+        if (selStart >= 0 && selStart != selEnd) return false // a selection: ⌫ deletes that, as always
+        val ic = currentInputConnection ?: return false
+        val n = com.ryderdavid.voicebar.voice.WordSuggester.swipeToDelete(ic.getTextBeforeCursor(added.length, 0), added)
+        if (n == 0) return false
+        ownEdit()
+        keyDuringDictation()
+        ic.deleteSurroundingText(n, 0)
+        lastFix = null
+        suggestionSpace = false
+        lastSwipe = null
+        AppLog.log("swipe", "⌫ took back the swiped word")
+        return true
     }
 
     /** ⌫ right after a fix on a space: back to what was typed, without the space. */
@@ -1188,6 +1222,7 @@ class VoicebarService : InputMethodService(), Bar.Listener {
             else info.imeOptions and EditorInfo.IME_MASK_ACTION
         lastFix = null
         suggestionSpace = false
+        swipeAdded = null
         if (!restarting) {
             stopDictationKeepingText()
             bar?.reloadSettings()
@@ -1343,6 +1378,8 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     // ---------------------------------------------------------------- Bar.Listener
 
     override fun onKey(key: Bar.Key, repeat: Boolean) {
+        if (key == Bar.Key.DELETE && !repeat && deleteSwipe()) return
+        swipeAdded = null
         if (key == Bar.Key.DELETE && !repeat && keysOpen && undoFix()) return
         if (key != Bar.Key.LEFT && key != Bar.Key.RIGHT) { lastFix = null; suggestionSpace = false }
         ownEdit()
