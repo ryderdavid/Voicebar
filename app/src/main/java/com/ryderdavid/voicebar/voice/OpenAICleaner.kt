@@ -74,7 +74,11 @@ class OpenAICleaner(
     // the screen too: a pause's cleanup is often the final text (nothing said after it)
     override fun cleanAtPause(cleaned: String, raw: String): String? = run(cleaned, raw, paused = true)
 
-    private fun run(cleaned: String, raw: String, paused: Boolean): String? {
+    private fun run(cleaned: String, raw: String, paused: Boolean): String? =
+        twice(paused, service) { once(cleaned, raw, paused) }
+
+    /** One request: the cleaned text, or null with [problem] set and whether asking again may help. */
+    private fun once(cleaned: String, raw: String, paused: Boolean): Pair<String?, Boolean> {
         val aroundNow = around()
         val request = Request.Builder()
             .url("$baseUrl/v1/responses")
@@ -89,14 +93,14 @@ class OpenAICleaner(
             seam = Infill.Seam()
             if (!response.isSuccessful) {
                 problem = "ChatGPT answered ${response.code}" + (ClaudeCleanupRequest.errorMessage(body)?.let { ": $it" } ?: "")
-                return null
+                return null to passing(response.code)
             }
             val parsed = OpenAICleanupRequest.text(body ?: "")?.let { ClaudeCleanupRequest.parseText(it) }
                 ?.let { ClaudeCleanupRequest.trimAround(it, aroundNow) }?.ifBlank { null }
             when {
-                parsed == null -> { problem = "ChatGPT's reply wasn't the cleaned text"; notUsed(body); null }
-                !ClaudeCleanupRequest.plausible(parsed, cleaned, raw) -> { problem = "ChatGPT's reply was far longer than what you said"; notUsed(body); null }
-                else -> parsed.also { if (aroundNow != null) seam = Infill.seam(OpenAICleanupRequest.text(body ?: "")) }
+                parsed == null -> { problem = "ChatGPT's reply wasn't the cleaned text"; notUsed(body); null to true }
+                !ClaudeCleanupRequest.plausible(parsed, cleaned, raw) -> { problem = "ChatGPT's reply was far longer than what you said"; notUsed(body); null to true }
+                else -> parsed.also { if (aroundNow != null) seam = Infill.seam(OpenAICleanupRequest.text(body ?: "")) } to false
             }
         }
     }

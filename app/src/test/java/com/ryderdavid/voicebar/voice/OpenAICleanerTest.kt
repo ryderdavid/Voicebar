@@ -31,6 +31,14 @@ class OpenAICleanerTest {
         assertEquals(Triple("gpt-6-luna", 900L, 40L), billed)
     }
 
+    @Test fun aReplyThatIsntTheTextIsAskedForOnceMore() {
+        fun reply(t: String) = """{"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"$t"}]}]}"""
+        val s = server(reply("I notice you said hello"), reply("<text>Hello there.</text>"))
+        val c = OpenAICleaner("k", OpenAICleanupRequest.LUNA, OkHttpClient(), s.url("").toString().trimEnd('/'))
+        assertEquals("Hello there.", c.clean("hello there"))
+        assertEquals(2, s.requestCount); s.shutdown()
+    }
+
     @Test fun anErrorSaysWhy() {
         val s = MockWebServer().apply { enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"Rate limit reached"}}""")); start() }
         val c = OpenAICleaner("k", OpenAICleanupRequest.LUNA, OkHttpClient(), s.url("").toString().trimEnd('/'))

@@ -179,6 +179,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         removeCallbacks(hideVoiceRunnable)
         voice = Bar.Voice.MESSAGE
         voiceText = message
+        noticeText = message
         messageAction = onTap
         postDelayed(hideVoiceRunnable, if (onTap != null) MESSAGE_ACTION_MS else MESSAGE_MS)
         invalidate()
@@ -711,6 +712,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         }
         // the keyboard's keys, in its open panel (after the offset, so they sit where it is drawn)
         if (drawer == Drawer.KEYS) items.firstOrNull { it.id == "keysPanel" }?.let { keys.layout(it.rect) }
+        if (noticeCard) layoutNotice(pillRect())
     }
 
     /** The floating bar, open: its keys sit in a pill (not while the keyboard, which opens full width, is up). */
@@ -766,8 +768,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             items.add(Item("enter", Act.ENTER, rect(cl, y, ukey, ukey), k))
         }
         items.add(Item("voice", Act.MIC, voiceAt))
-        // a note, or the "voice bar" command: beside Voice, toward the middle, with room for the words
-        if (voice == Bar.Voice.MESSAGE || commandSaid != null) {
+        // a message: its card beside Voice; the "voice bar" command: beside Voice too, toward the middle
+        if (noticeCard) layoutNotice(voiceAt, beside = true)
+        else if (commandSaid != null) {
             val nw = min(dp(UPRIGHT_NOTE_DP), width - colW - 3 * dp(FLOAT_MARGIN_DP))
             val nx = if (columnRight()) voiceAt.left - upad - dp(8f) - nw else voiceAt.right + upad + dp(8f)
             items.add(Item("note", Act.MIC, rect(nx, voiceAt.top, nw, ukey)))
@@ -828,7 +831,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (menuList) touch += menuBox().apply { offset(0f, barTop) }
         if (picker) pickerBox()?.let { touch += it.apply { offset(0f, barTop) } }
         if (!collapsed) tipRect()?.let { touch += it }
-        items.firstOrNull { it.id == "note" }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
+        items.firstOrNull { it.id == "note" || it.id == "notice" }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
         // parked at the bottom, the app sits above the pill (the strip just above it is see-through, for its edge)
         val content = if (!collapsed && parked && !vert) (barTop - dp(FLOAT_EDGE_DP)).toInt() else height
         return content to touch
@@ -869,7 +872,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val ph = b + 2 * pad
         val grip = dp(GRIP_DP)
         val small = pad + grip + gap + b + gap + dp(COLLAPSED_MIC_DP) + pad
-        val wide = talking || voice != Bar.Voice.OFF || commandSaid != null
+        val wide = talking || voice == Bar.Voice.CLEANING || commandSaid != null
         val pw = if (wide) min(w - 2 * m, dp(COLLAPSED_WIDE_DP)) else small
         val cx = (pillFx * w).coerceIn(m + small / 2, w - m - small / 2)
         val top = (pillFy * areaH - ph / 2).coerceIn(m, areaH - m - ph)
@@ -885,15 +888,109 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             items.add(Item("more", Act.MORE, rect(left + pad + grip + gap, y, b, b)))
             items.add(Item("voice", Act.MIC, rect(left + pad + grip + gap + b + gap, y, dp(COLLAPSED_MIC_DP), b)))
         }
+        if (noticeCard) layoutNotice(rect(left, top - barTop, pw, ph))
     }
 
     /** The collapsed pill on screen (view coordinates), for the touchable region; null when it isn't collapsed. */
     fun collapsedPill(): RectF? {
         if (!collapsed || width <= 0) return null
         layoutAll()
-        val r = items.filter { (it.act == Act.MIC || it.act == Act.MORE || it.act == Act.GRIP) && it.alpha > 0f && it.id != "note" }.map { it.rect }.reduceOrNull { a, c -> RectF(a).apply { union(c) } } ?: return null
+        val r = items.filter { (it.act == Act.MIC || it.act == Act.MORE || it.act == Act.GRIP) && it.alpha > 0f && it.id != "note" && it.id != "notice" }.map { it.rect }.reduceOrNull { a, c -> RectF(a).apply { union(c) } } ?: return null
         val pad = dp(6f)
         return RectF(r.left - pad, r.top - pad + barTop, r.right + pad, r.bottom + pad + barTop)
+    }
+
+    // ---------------------------------------------------------------- the floating bar's notices
+
+    /**
+     * Floating (open, collapsed or upright), a message is a card of its own by the bar, like a Material
+     * snackbar: room for two lines, where the bar's one key-high pill cut it off. Docked, the bar is
+     * wide enough for it in the Voice pill.
+     */
+    private val noticeCard get() = voice == Bar.Voice.MESSAGE && !preview && (collapsed || freeFloat || vert)
+
+    /** What the card says: kept when it's put away, so it fades out still saying it. */
+    private var noticeText = ""
+
+    private val noticePaint = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(14f) }
+    private var noticeLayout: android.text.StaticLayout? = null
+
+    /**
+     * The card's words at [inner] wide: two lines where it's wide enough, a third (upright, beside the
+     * column, it's narrower) rather than cut a message off. Cached for drawing.
+     */
+    private fun noticeLines(inner: Int): android.text.StaticLayout {
+        noticeLayout?.takeIf { it.text.toString() == noticeText && it.width == inner }?.let { return it }
+        return android.text.StaticLayout.Builder.obtain(noticeText, 0, noticeText.length, noticePaint, inner.coerceAtLeast(1))
+            .setMaxLines(3).setEllipsize(android.text.TextUtils.TruncateAt.END).setLineSpacing(dp(2f), 1f).build()
+            .also { noticeLayout = it }
+    }
+
+    /** The text's width in a card [w] wide: after the icon and the padding either side. */
+    private fun noticeInner(w: Float) = (w - dp(16f) - dp(20f) - dp(12f) - dp(16f)).toInt()
+
+    /**
+     * The card, by [anchor] (bar coordinates): above it, the anchor's width when the words fit in two
+     * lines there; when they don't, as wide as one line of them needs, or (to [NOTICE_DP]) as two
+     * lines do. Centered on it and kept on screen; below it when there's no room above. [beside]:
+     * upright, next to it toward the middle instead, as wide as the words need.
+     */
+    private fun layoutNotice(anchor: RectF, beside: Boolean = false) {
+        val m = dp(FLOAT_MARGIN_DP)
+        val gap = dp(8f)
+        val room = if (beside) width - colW - 2 * m - gap else width - 2 * m
+        val most = min(dp(NOTICE_DP), room)
+        val twoLines = { w: Float -> noticeLines(noticeInner(w)).let { it.lineCount <= 2 && it.getEllipsisCount(it.lineCount - 1) == 0 } }
+        val oneLine = noticePaint.measureText(noticeText) + dp(16f) + dp(20f) + dp(12f) + dp(16f) + dp(2f)
+        val least = if (beside) dp(160f) else anchor.width()
+        val w = when {
+            !beside && anchor.width() <= most && twoLines(anchor.width()) -> anchor.width()
+            oneLine <= most -> max(least, oneLine).coerceAtMost(most)
+            else -> most
+        }
+        val h = max(dp(48f), noticeLines(noticeInner(w)).height + 2 * dp(12f))
+        val areaTop = m - barTop
+        val areaBottom = height - bottomInset - m - barTop
+        val r = if (beside) {
+            val x = if (columnRight()) columnLeft() - gap - w else columnLeft() + colW + gap
+            val t = (anchor.centerY() - h / 2).coerceIn(areaTop, max(areaTop, areaBottom - h))
+            RectF(x, t, x + w, t + h)
+        } else {
+            val x = (anchor.centerX() - w / 2).coerceIn(m, max(m, width - m - w))
+            val t = if (anchor.top - gap - h >= areaTop) anchor.top - gap - h else anchor.bottom + gap
+            RectF(x, t, x + w, t + h)
+        }
+        items.add(Item("notice", Act.MIC, r, 1f, min(h / 2, dp(24f))))
+    }
+
+    @VisibleForTesting internal fun testNotice(): RectF? { layoutAll(); return items.firstOrNull { it.id == "notice" }?.rect?.let { RectF(it).apply { offset(0f, barTop) } } }
+
+    /**
+     * The notice: the bar's message colors (tonal red for a warning, the tonal blue of a note), a
+     * leading icon, the words in up to two lines, and the bar's soft shadow, since it floats too.
+     */
+    private fun drawNotice(canvas: Canvas, r: RectF, al: Float, down: Boolean) {
+        val pal = palette
+        val rr = min(r.height() / 2, dp(24f))
+        val a = ((if (pal.dark) 14 else 7) * al).toInt()
+        for (i in 1..6) {
+            val g = i * dp(0.7f)
+            val dy = dp(1f) + i * dp(0.35f)
+            fill.color = Color.argb(a, 0, 0, 0)
+            canvas.drawRoundRect(r.left - g, r.top - g + dy, r.right + g, r.bottom + g + dy, rr + g, rr + g, fill)
+        }
+        val bg = if (messageGood) pal.center else pal.discard
+        val fg = if (messageGood) pal.onCenter else pal.onDiscard
+        fill.color = alpha(if (down) ColorUtils.blendARGB(bg, fg, 0.12f) else bg, al)
+        canvas.drawRoundRect(r, rr, rr, fill)
+        fill.color = alpha(fg, al)
+        Icons.draw(canvas, if (messageGood) Icons.Glyph.INFO else Icons.Glyph.ERROR, r.left + dp(16f) + dp(10f), r.centerY(), dp(20f), fill)
+        val lines = noticeLines(noticeInner(r.width()))
+        noticePaint.color = alpha(fg, al)
+        canvas.save()
+        canvas.translate(r.left + dp(16f) + dp(20f) + dp(12f), r.centerY() - lines.height / 2f)
+        lines.draw(canvas)
+        canvas.restore()
     }
 
     /** Collapses the floating bar to its record pill, or opens it again; remembered. */
@@ -931,7 +1028,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         val cursorPill = slot(c0)
         val abcPill = slot(c0 + 1)
         val voicePill = slot(c0 + 2)
-        val busyVoice = voice == Bar.Voice.CLEANING || voice == Bar.Voice.MESSAGE
+        val busyVoice = voice == Bar.Voice.CLEANING || (voice == Bar.Voice.MESSAGE && !noticeCard)
         fun rightKeys(k: Float = 1f) {
             if (!inPill) items.add(Item("bksp", Act.BACKSPACE, slot(5), k))
             items.add(Item("enter", Act.ENTER, slot(n - 1), k))
@@ -2264,7 +2361,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         if (picker) { pickerHover(x, y); return }
         // the collapsed pill at rest follows a finger that moves off it (a press that stays put is a tap);
         // the open floating pill follows its grip
-        val drags = (collapsed && !talking && voice == Bar.Voice.OFF && (p.act == Act.MIC || p.act == Act.MORE || p.act == Act.GRIP)) ||
+        val drags = (collapsed && !talking && (voice == Bar.Voice.OFF || voice == Bar.Voice.MESSAGE) && p.id != "notice" && (p.act == Act.MIC || p.act == Act.MORE || p.act == Act.GRIP)) ||
             (freeFloat && p.act == Act.GRIP && drawer == Drawer.NONE) || (vert && !collapsed && p.act == Act.GRIP && drawer == Drawer.NONE)
         if (drags) {
             val vy = y + barTop // in view coordinates, before the pill moves
@@ -2410,7 +2507,10 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Act.MIC -> when {
                 talking -> endTalk(cancel = false, polish = true)
                 voice == Bar.Voice.CLEANING -> Unit
-                voice == Bar.Voice.MESSAGE && messageAction != null -> { val a = messageAction; hideVoice(); a?.invoke() }
+                // floating, the message is its own card: tapping it does what it offers (or puts it away),
+                // and Voice is just Voice
+                voice == Bar.Voice.MESSAGE && messageAction != null && (p.id == "notice" || !noticeCard) -> { val a = messageAction; hideVoice(); a?.invoke() }
+                p.id == "notice" -> hideVoice()
                 else -> startTalk()
             }
             Act.FINISH -> if (talking) endTalk(cancel = false, polish = true)
@@ -2557,7 +2657,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         canvas.scale(s, s, r.centerX(), r.centerY())
         val down = pressed?.id == a.id
         when (a.act) {
-            Act.MIC -> if (vert && a.id == "voice") drawUprightMic(canvas, r, al, now, down)
+            Act.MIC -> if (a.id == "notice") drawNotice(canvas, r, al, down)
+                else if (vert && a.id == "voice") drawUprightMic(canvas, r, al, now, down)
                 else { drawVoicePill(canvas, r, a.v[4], al, now, down); if (talking && titleCaseOn) drawTitleCaseBadge(canvas, r, al) }
             Act.CURSOR -> drawPill(canvas, r, a.v[4], al, down, Act.CURSOR)
             Act.KEYBOARD -> drawPill(canvas, r, a.v[4], al, down || drawer == Drawer.KEYS, Act.KEYBOARD) // lit while its keyboard is up
@@ -2978,7 +3079,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private fun drawVoicePillBody(canvas: Canvas, r: RectF, rad: Float, al: Float, now: Long, down: Boolean) {
         val pal = palette
         val cleaning = voice == Bar.Voice.CLEANING && !talking
-        val message = voice == Bar.Voice.MESSAGE && !talking
+        val message = voice == Bar.Voice.MESSAGE && !talking && !noticeCard
         val small = false
         // "voice bar" heard: Material You purple, fading in (and back out when it's let go)
         val cmdT = ((SystemClock.uptimeMillis() - commandAt) / COMMAND_FADE_MS.toFloat()).coerceIn(0f, 1f)
@@ -3498,6 +3599,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         const val UPRIGHT_KEY_DP = 44f
         /** A note beside the upright column, at most. */
         const val UPRIGHT_NOTE_DP = 260f
+        /** The floating bar's notice card at its widest. */
+        const val NOTICE_DP = 360f
         /** The cursor pad beside the upright column, at most. */
         const val UPRIGHT_PANEL_DP = 340f
         /** The pills' grip (⠿). */

@@ -229,8 +229,38 @@ class VoiceProtocolTest {
     }
 
     @Test fun cleanerReturnsNullOnHttpError() {
-        server.enqueue(MockResponse().setResponseCode(529).setBody("""{"type":"error"}"""))
+        // overloaded: asked once more, then given up on
+        repeat(2) { server.enqueue(MockResponse().setResponseCode(529).setBody("""{"type":"error"}""")) }
         assertNull(ClaudeCleaner("k", "m", client, server.url("/").toString().trimEnd('/')).clean("x"))
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun aReplyThatIsntTheTextIsAskedForOnceMore() {
+        server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"Here is the cleaned text: meet wednesday"}]}"""))
+        server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"<text>Meet on Wednesday.</text>"}]}"""))
+        val c = ClaudeCleaner("k", "m", client, server.url("/").toString().trimEnd('/'))
+        assertEquals("Meet on Wednesday.", c.clean("meet on wednesday"))
+        assertEquals(2, server.requestCount)
+        assertNull(c.problem)
+    }
+
+    @Test fun twoBadRepliesShowTheProblem() {
+        val long = "word ".repeat(80)
+        repeat(2) { server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"<text>$long</text>"}]}""")) }
+        val c = ClaudeCleaner("k", "m", client, server.url("/").toString().trimEnd('/'))
+        assertNull(c.clean("hi"))
+        assertEquals(2, server.requestCount)
+        assertEquals("Claude's reply was far longer than what you said", c.problem)
+    }
+
+    @Test fun aPauseAndAWrongKeyAreAskedOnlyOnce() {
+        server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"Here is the cleaned text"}]}"""))
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"type":"error","error":{"message":"invalid x-api-key"}}"""))
+        val c = ClaudeCleaner("k", "m", client, server.url("/").toString().trimEnd('/'))
+        assertNull(c.cleanAtPause("", "hi"))
+        assertEquals(1, server.requestCount)
+        assertNull(c.clean("hi"))
+        assertEquals(2, server.requestCount)
     }
 
     @Test fun micLevelMapsSilenceAndLoudness() {

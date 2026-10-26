@@ -52,14 +52,24 @@ object DictationFix {
     fun parse(reply: String): String? =
         Regex("""<text>(.*?)</text>""", RegexOption.DOT_MATCHES_ALL).find(reply)?.groupValues?.get(1)?.trim()?.ifBlank { null }
 
-    /** Blocking: the fixed text, or null when the request failed or the reply wasn't usable. */
+    /**
+     * Blocking: the fixed text, or null when the request failed or the reply wasn't usable. A reply
+     * that wasn't usable is usually a one-off, so it's asked once more first; a failed request isn't.
+     */
     fun fix(text: String, instructions: String, choice: CleanupModels.Choice, client: OkHttpClient,
             onUsage: (String, Long, Long) -> Unit, dictionary: String = ""): String? {
-        val reply = SendFinder.call(choice, { claudeBody(text, instructions, choice.model, dictionary) },
-            { openAIBody(text, instructions, choice.model, dictionary) }, client, onUsage, "fix", tag = "fix") ?: return null
-        val fixed = parse(reply) ?: return null.also { AppLog.log("fix", "reply wasn't the text: " + AppLog.excerpt(reply)) }
-        // a reply far longer than the box is commentary or invention, not a fix
-        if (!ClaudeCleanupRequest.plausible(fixed, text, "")) return null.also { AppLog.log("fix", "reply far longer than the box, not used") }
-        return fixed
+        repeat(2) { n ->
+            val reply = SendFinder.call(choice, { claudeBody(text, instructions, choice.model, dictionary) },
+                { openAIBody(text, instructions, choice.model, dictionary) }, client, onUsage, "fix", tag = "fix") ?: return null
+            val fixed = parse(reply)
+            when {
+                fixed == null -> AppLog.log("fix", "reply wasn't the text: " + AppLog.excerpt(reply))
+                // a reply far longer than the box is commentary or invention, not a fix
+                !ClaudeCleanupRequest.plausible(fixed, text, "") -> AppLog.log("fix", "reply far longer than the box, not used")
+                else -> return fixed
+            }
+            if (n == 0) AppLog.log("fix", "asking once more")
+        }
+        return null
     }
 }

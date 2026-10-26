@@ -127,6 +127,8 @@ class RenderUprightTest {
             tap(DockView.Act.CURSOR); relayout()
             dock.showNote("Nothing in the box to fix yet", null); relayout(); shot("9-note")
             dock.hideVoice(); idle(400); relayout()
+            dock.showMessage("Not cleaned up (Claude's reply was far longer than what you said), typed as spoken", null); relayout(); shot("9b-warning")
+            dock.hideVoice(); idle(400); relayout()
             tap(DockView.Act.MORE); relayout()
             dock.testMenuAt(DockView.MenuItem.COLLAPSE)!!.let { ev(MotionEvent.ACTION_DOWN, it.x, it.y); ev(MotionEvent.ACTION_UP, it.x, it.y) }
             relayout(); shot("10-collapsed")

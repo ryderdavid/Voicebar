@@ -121,6 +121,13 @@ class RenderFloatingTest {
                 shot("$s-3-menu")
                 continue
             }
+            // its notices: a warning too long for one line, then a short note
+            dock.showMessage("Not cleaned up (Claude's reply was far longer than what you said), typed as spoken", null); relayout()
+            shot("$s-4-warning")
+            dock.hideVoice(); idle(400); relayout()
+            dock.showNote("Fixed", null); relayout()
+            shot("$s-5-note")
+            dock.hideVoice(); idle(400); relayout()
             dock.canPaste = true
             dock.clipPreview = "Meet at the Camelback trailhead, 6:40 sharp"
             tap(DockView.Act.MORE); relayout()
@@ -128,6 +135,9 @@ class RenderFloatingTest {
             dock.testMenuAt(DockView.MenuItem.COLLAPSE)!!.let { ev(MotionEvent.ACTION_DOWN, it.x, it.y); ev(MotionEvent.ACTION_UP, it.x, it.y) }
             relayout()
             shot("collapsed-1-rest")
+            dock.showMessage("Couldn't fix it: claude-haiku-5-5", null); relayout()
+            shot("collapsed-4-warning")
+            dock.hideVoice(); idle(400); relayout()
             tap(DockView.Act.MORE); relayout()
             shot("collapsed-3-menu")
             tap(DockView.Act.MORE); relayout()

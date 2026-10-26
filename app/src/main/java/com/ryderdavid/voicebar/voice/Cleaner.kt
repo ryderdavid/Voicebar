@@ -39,6 +39,21 @@ fun cleanupFailure(t: Throwable, service: String = "Claude"): String = when (t) 
     else -> (t.javaClass.simpleName + (t.message?.let { ": " + it.take(80) } ?: ""))
 }
 
+/** An HTTP failure that usually passes (the model busy or overloaded): worth asking once more. */
+internal fun passing(code: Int) = code >= 500
+
+/**
+ * [once] asked a second time when its first answer wasn't usable and asking again may help: a bad
+ * reply is usually a one-off. Not at a pause: the cleanup at the end comes anyway. A timeout or a
+ * lost connection throws and isn't asked again (the user is already waiting).
+ */
+internal fun twice(paused: Boolean, service: String, once: () -> Pair<String?, Boolean>): String? {
+    val (text, again) = once()
+    if (text != null || !again || paused) return text
+    com.ryderdavid.voicebar.AppLog.log("cleanup", "$service's first reply wasn't usable; asking once more")
+    return once().first
+}
+
 /**
  * The text already in the field on either side of the cursor when dictation started: the new
  * words go in between, so they're cleaned to fit there.
@@ -269,7 +284,11 @@ class ClaudeCleaner(
     // the screen too: a pause's cleanup is often the final text (nothing said after it)
     override fun cleanAtPause(cleaned: String, raw: String): String? = run(cleaned, raw, paused = true)
 
-    private fun run(cleaned: String, raw: String, paused: Boolean): String? {
+    private fun run(cleaned: String, raw: String, paused: Boolean): String? =
+        twice(paused, "Claude") { once(cleaned, raw, paused) }
+
+    /** One request: the cleaned text, or null with [problem] set and whether asking again may help. */
+    private fun once(cleaned: String, raw: String, paused: Boolean): Pair<String?, Boolean> {
         val aroundNow = around()
         val request = Request.Builder()
             .url("$baseUrl/v1/messages")
@@ -285,13 +304,13 @@ class ClaudeCleaner(
             seam = Infill.Seam()
             if (!response.isSuccessful) {
                 problem = "Claude answered ${response.code}" + (ClaudeCleanupRequest.errorMessage(body)?.let { ": $it" } ?: "")
-                return null
+                return null to passing(response.code)
             }
             val parsed = ClaudeCleanupRequest.parse(body ?: "")?.let { ClaudeCleanupRequest.trimAround(it, aroundNow) }?.ifBlank { null }
             when {
-                parsed == null -> { problem = "Claude's reply wasn't the cleaned text"; notUsed(body); null }
-                !ClaudeCleanupRequest.plausible(parsed, cleaned, raw) -> { problem = "Claude's reply was far longer than what you said"; notUsed(body); null }
-                else -> parsed.also { if (aroundNow != null) seam = Infill.seam(ClaudeCleanupRequest.replyText(body ?: "")) }
+                parsed == null -> { problem = "Claude's reply wasn't the cleaned text"; notUsed(body); null to true }
+                !ClaudeCleanupRequest.plausible(parsed, cleaned, raw) -> { problem = "Claude's reply was far longer than what you said"; notUsed(body); null to true }
+                else -> parsed.also { if (aroundNow != null) seam = Infill.seam(ClaudeCleanupRequest.replyText(body ?: "")) } to false
             }
         }
     }

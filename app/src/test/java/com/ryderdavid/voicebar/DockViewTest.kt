@@ -226,6 +226,55 @@ class DockViewTest {
         assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys)
     }
 
+    @Test fun floatingAMessageIsATwoLineCardAboveThePillWhichKeepsItsKeys() {
+        floating()
+        val pill = assertNotNull(dock.testItem(DockView.Act.MIC))
+        dock.showMessage("Not cleaned up (Claude's reply was far longer than what you said), typed as spoken")
+        relayout()
+        val card = assertNotNull(dock.testNotice(), "a card of its own")
+        assertTrue(card.height() >= 48 * d - 0.5f, "a card, taller than the pill's keys")
+        assertTrue(card.bottom <= pill.top, "above the pill")
+        assertTrue(card.left >= 0 && card.right <= dock.width, "on screen")
+        assertEquals(pill, dock.testItem(DockView.Act.MIC), "Voice stays a key, where it was")
+        assertTrue(dock.testHas(DockView.Act.CURSOR) && dock.testHas(DockView.Act.KEYBOARD), "and the other keys stay")
+        assertTrue(dock.floatingInsets()!!.second.any { it.contains(card.centerX(), card.centerY()) }, "the card takes touches")
+        dock.hideVoice(); relayout()
+        assertNull(dock.testNotice())
+    }
+
+    @Test fun floatingTappingTheCardDoesWhatItOffersAndVoiceStillListens() {
+        floating()
+        var opened = 0
+        dock.showMessage("Way back from Gboard is off") { opened++ }
+        relayout()
+        val c = assertNotNull(dock.testNotice())
+        val p = PointF(c.centerX(), c.centerY())
+        touch(MotionEvent.ACTION_DOWN, p); touch(MotionEvent.ACTION_UP, p); idle(20)
+        assertEquals(1, opened)
+        assertEquals(Bar.Voice.OFF, dock.voice)
+        dock.showMessage("Way back from Gboard is off") { opened++ }
+        relayout()
+        tap(DockView.Act.MIC)
+        assertEquals(1, opened, "Voice doesn't run the card's action")
+        assertEquals(listOf("start"), talk, "it listens")
+    }
+
+    @Test fun collapsedAMessageLeavesThePillSmallWithItsCardBesideIt() {
+        floating(collapsed = true)
+        val small = assertNotNull(dock.testCollapsedPill())
+        dock.showMessage("Couldn't fix it: claude-haiku-5-5")
+        relayout()
+        assertEquals(small, dock.testCollapsedPill(), "the pill doesn't grow")
+        val card = assertNotNull(dock.testNotice())
+        assertFalse(RectF.intersects(card, small), "clear of the pill")
+    }
+
+    @Test fun dockedAMessageStaysInTheVoicePill() {
+        dock.showMessage("Add an ElevenLabs key")
+        relayout()
+        assertNull(dock.testNotice())
+    }
+
     private fun upright() {
         floating()
         menu(DockView.MenuItem.UPRIGHT)
