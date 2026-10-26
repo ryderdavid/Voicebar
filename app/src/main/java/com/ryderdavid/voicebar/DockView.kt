@@ -2693,6 +2693,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     private fun drawRound(canvas: Canvas, act: Act, r: RectF, corner: Float, al: Float, down: Boolean) {
         val pal = palette
         val bg = when {
+            // the grip never lights up: dragging it, the tick under the finger is enough
+            act == Act.GRIP -> Color.TRANSPARENT
             // tiered: keeping is the strong action (primary); throwing away is tonal red, so it never outshouts ✓
             tiered && act == Act.DISCARD -> if (down) ColorUtils.blendARGB(pal.discard, pal.onDiscard, 0.14f) else pal.discard
             act == Act.DISCARD -> if (down) ColorUtils.blendARGB(pal.error, Color.BLACK, 0.18f) else pal.error
@@ -2710,6 +2712,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             else -> Color.TRANSPARENT
         }
         val fg = when {
+            act == Act.GRIP -> pal.onCardinal
             tiered && act == Act.DISCARD -> pal.onDiscard
             act == Act.DISCARD -> pal.onError
             act == Act.FINISH -> pal.onPressed
