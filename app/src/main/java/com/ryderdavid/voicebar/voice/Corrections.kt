@@ -19,24 +19,34 @@ object Corrections {
     private fun norm(w: String) = w.lowercase().filter { it.isLetterOrDigit() || it == '\'' }
     private fun words(s: String) = s.split(Regex("\\s+")).filter { it.isNotBlank() }
 
-    fun find(inserted: String, field: String): List<Change> {
+    /** The inserted words, where they ended up in the field, and the two aligned word by word. */
+    private class Aligned(val a: List<String>, val w: List<String>, val m: List<Pair<Int, Int>>)
+
+    private fun align(inserted: String, field: String): Aligned? {
         val a = words(inserted)
         val f = words(field)
-        if (a.isEmpty() || f.isEmpty()) return emptyList()
+        if (a.isEmpty() || f.isEmpty()) return null
         val an = a.map(::norm)
         val fn = f.map(::norm)
         // where the inserted words ended up: the span of the field the alignment matches
         val m0 = lcs(an, fn)
-        if (m0.size < max(1, a.size / 2)) return emptyList() // mostly gone or rewritten: nothing to learn
+        if (m0.size < max(1, a.size / 2)) return null // mostly gone or rewritten: nothing to learn
         val firstA = m0.first().first
         val lastA = m0.last().first
         val lo = (m0.first().second - firstA).coerceAtLeast(0)
         val hi = (m0.last().second + (a.size - 1 - lastA)).coerceAtMost(f.size - 1)
         val w = f.subList(lo, hi + 1)
-        val wn = fn.subList(lo, hi + 1)
-        val m = lcs(an, wn)
+        val m = lcs(an, fn.subList(lo, hi + 1))
         // a rewrite, not a correction
-        if (m.size < a.size * 0.6) return emptyList()
+        if (m.size < a.size * 0.6) return null
+        return Aligned(a, w, m)
+    }
+
+    fun find(inserted: String, field: String): List<Change> {
+        val al = align(inserted, field) ?: return emptyList()
+        val a = al.a
+        val w = al.w
+        val m = al.m
         val out = mutableListOf<Change>()
         var pa = 0
         var pw = 0
@@ -57,6 +67,23 @@ object Corrections {
         }
         return out
     }
+
+    /**
+     * The words the user only re-capitalized ("LOL" → "lol", "iphone" → "iPhone"), as (typed,
+     * fixed): how they like the word written, wherever it comes up. Not a first letter alone ("The"
+     * → "the"): that's where the word fell in a sentence, not how it's spelled.
+     */
+    fun casings(inserted: String, field: String): List<Pair<String, String>> {
+        val al = align(inserted, field) ?: return emptyList()
+        fun bare(s: String) = s.trim { c -> !c.isLetterOrDigit() }
+        return al.m.map { (i, j) -> bare(al.a[i]) to bare(al.w[j]) }
+            .filter { (h, x) -> casingWorthLearning(h, x) }
+            .distinctBy { it.second }
+    }
+
+    fun casingWorthLearning(typed: String, fixed: String): Boolean =
+        typed != fixed && typed.equals(fixed, ignoreCase = true) && fixed.length >= 2 &&
+            fixed.all { it.isLetter() || it == '\'' } && typed.drop(1) != fixed.drop(1)
 
     /** A swap that could be a mishearing: different words (not just case), no numbers, sounding alike. */
     fun worthLearning(heard: String, fixed: String): Boolean {

@@ -62,10 +62,11 @@
     <string name="dict_add_term">How it\'s written</string>
     <string name="dict_add_heard">Often heard as (optional)</string>
     <string name="dict_heard_as">Heard as %1$s</string>
+    <string name="dict_written_so">Always written like this</string>
     <string name="dict_learned">learned</string>
     <string name="dict_added">added by you</string>
     <string name="dict_remove">Remove</string>
-    <string name="dict_footnote">Stored on this phone only. Learned mishearings are fixed by the cleanup with context; ones you added, or that came up twice, are also replaced every time.</string>
+    <string name="dict_footnote">Stored on this phone only. Learned mishearings are fixed by the cleanup with context; ones you added, or that came up twice, are also replaced every time. Fix a word\'s capitals by hand twice (LOL to lol), or add it here in its own capitals (lol, iPhone), and it\'s always written that way.</string>
     <string name="page_language_summary">Millennial mode: no final period in searches, chats or everywhere</string>
     <string name="page_help">How to use it</string>
     <string name="page_help_summary">Talking, typing, the cursor pad</string>
@@ -209,6 +210,7 @@
     <string name="dock_let_go_cancel">Let go to cancel</string>
     <string name="dock_command_wait">Voice bar…</string>
     <string name="learned_note">Learned “%1$s” · tap to undo</string>
+    <string name="learned_casing_note">From now on, “%1$s” is written like that · tap to undo</string>
     <string name="dock_waveoff_talking">Swipe up to dismiss</string>
     <string name="dock_waveoff_rest">Swipe up to dismiss</string>
     <string name="dock_wake_listen">Voice bar… “listen” or “close”</string>

@@ -319,8 +319,11 @@ class VoicebarService : InputMethodService(), Bar.Listener {
 
     /** Compares the field with what was typed; corrections go to Claude to judge, in the background. */
     private fun checkCorrections(p: CorrectionWatch.Pending, field: String): Boolean {
+        // re-capitalized words need no judging: how the user writes them, kept once it's happened twice
+        val casings = Corrections.casings(p.text, field).take(3)
+        casings.forEach { (typed, fixed) -> learnedCasing(typed, fixed) }
         val changes = Corrections.find(p.text, field).take(3)
-        if (changes.isEmpty()) return false
+        if (changes.isEmpty()) return casings.isNotEmpty()
         val key = Secrets.get(this, Secrets.ANTHROPIC)?.takeIf { it.isNotBlank() } ?: return true
         // learning from fixes is Claude's job (Haiku), whichever model does cleanup
         val model = ClaudeCleanupRequest.DEFAULT_MODEL
@@ -343,6 +346,23 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         val note = getString(R.string.learned_note, r.term)
         val undo = { dict.restore(r.term, before) }
         if (inputShown && !dictation.dictating) bar?.showNote(note, undo) else learnedNote = note to undo
+    }
+
+    /** [typed] was re-capitalized to [fixed] by hand: counted, and from the second time on, kept. */
+    private fun learnedCasing(typed: String, fixed: String) {
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        main.post {
+            val dict = Dictionary.of(this)
+            val before = dict.find(fixed)
+            val e = dict.add(fixed, typed, vocabulary = before?.vocabulary ?: false)
+            AppLog.log("learn", "“$typed” written “$fixed” (${e.count}×)")
+            // a note once, when it starts being kept
+            fun kept(x: Dictionary.Entry) = Dictionary.keepsCase(x) && (!x.learned || x.count >= 2)
+            if (!kept(e) || (before != null && kept(before))) return@post
+            val note = getString(R.string.learned_casing_note, fixed)
+            val undo = { dict.restore(fixed, before) }
+            if (inputShown && !dictation.dictating) bar?.showNote(note, undo) else learnedNote = note to undo
+        }
     }
 
     private fun showLearnedNote() {

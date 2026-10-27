@@ -995,7 +995,9 @@ private fun DictionaryPage(onBack: () -> Unit) {
         }) + entries.map { e ->
             @Composable {
                 val parts = mutableListOf<String>()
-                if (e.heard.isNotEmpty()) parts += stringResource(R.string.dict_heard_as, e.heard.joinToString(", ") { "“$it”" })
+                val misheard = e.heard.filter { !it.equals(e.term, ignoreCase = true) }
+                if (misheard.isNotEmpty()) parts += stringResource(R.string.dict_heard_as, misheard.joinToString(", ") { "“$it”" })
+                if (com.ryderdavid.voicebar.voice.Dictionary.keepsCase(e)) parts += stringResource(R.string.dict_written_so)
                 parts += stringResource(if (e.learned) R.string.dict_learned else R.string.dict_added)
                 if (e.count > 1) parts += "${e.count}×"
                 SettingRow(

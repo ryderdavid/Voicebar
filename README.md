@@ -141,6 +141,8 @@ When you hand-fix a word Voicebar typed (a name it misheard, a product, an acron
 
 The dictionary is used three ways: the 50 most used terms go to ElevenLabs as keyterms (optional, extra cost); the whole list goes into the cleanup prompt; and a mishearing you added yourself, or that was learned twice, is replaced outright. It's stored on the phone only, and password fields are never read.
 
+**How you write a word.** Change only a word's capitals by hand (LOL to lol, iphone to iPhone) and Voicebar counts it, with no model involved; the second time, that word is always written your way, wherever it comes up and whatever the cleanup did, with a note you can tap to undo. A first letter alone (The to the) isn't counted: that's where the word fell in a sentence. Adding a word yourself in capitals a sentence wouldn't give it (lol, iPhone, YODA) does the same at once; a plain capitalized word (Will) doesn't, so it can't turn every "will" into a name. These entries say *Always written like this* in Settings ▸ Dictionary, where removing one ends it. The cleanup prompt doesn't change: it's a last step on the text, so it costs nothing and can't make the cleanup worse.
+
 ## Build
 
 ```

@@ -34,11 +34,14 @@ class Dictionary internal constructor(private val file: File?) {
     @Synchronized fun add(term: String, heard: String? = null, vocabulary: Boolean = true, learned: Boolean = true): Entry {
         val t = term.trim()
         val i = entries.indexOfFirst { it.term.equals(t, ignoreCase = true) }
-        val h = heard?.trim()?.takeIf { it.isNotEmpty() && !it.equals(t, ignoreCase = true) }
+        // the same word in other capitals counts too: it's how the word is written ("LOL" → "lol")
+        val h = heard?.trim()?.takeIf { it.isNotEmpty() && it != t }
         val e = if (i < 0) Entry(t, listOfNotNull(h), vocabulary, 1, System.currentTimeMillis(), learned)
         else entries[i].let { old ->
             old.copy(
-                heard = (old.heard + listOfNotNull(h)).distinctBy { it.lowercase() },
+                // written in other capitals this time: the latest is how it's written now
+                term = t,
+                heard = (old.heard + listOfNotNull(h)).distinct().filter { it != t },
                 vocabulary = old.vocabulary || vocabulary,
                 count = old.count + 1,
                 lastSeen = System.currentTimeMillis(),
@@ -71,26 +74,30 @@ class Dictionary internal constructor(private val file: File?) {
         if (all.isEmpty()) return ""
         val sb = StringBuilder("The speaker's personal dictionary. Spell these names and terms exactly as written when they're what was said:\n")
         all.filter { it.vocabulary }.take(200).forEach { sb.append("- ").append(it.term).append('\n') }
-        val misheard = all.filter { it.heard.isNotEmpty() }.take(200)
+        // capitals alone aren't a mishearing: the final pass writes those itself
+        val misheard = all.map { e -> e to e.heard.filter { !it.equals(e.term, ignoreCase = true) } }.filter { it.second.isNotEmpty() }.take(200)
         if (misheard.isNotEmpty()) {
             sb.append("Speech recognition often mishears these; when the transcript has the left side and the context fits, write the right side:\n")
-            misheard.forEach { e -> e.heard.forEach { h -> sb.append("- \"").append(h).append("\" → \"").append(e.term).append("\"\n") } }
+            misheard.forEach { (e, heard) -> heard.forEach { h -> sb.append("- \"").append(h).append("\" → \"").append(e.term).append("\"\n") } }
         }
         return sb.toString().trim()
     }
 
     /**
      * The sure replacements, done without the model: mishearings added by hand, or seen at
-     * least twice. Whole words only, ignoring case.
+     * least twice; and the words always written in their own capitals ([keepsCase]). Whole words
+     * only, ignoring case.
      */
     @Synchronized fun applySure(text: String): String {
         var out = text
+        fun swap(from: String, to: String) {
+            val re = Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(from) + "(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+            out = out.replace(re, Regex.escapeReplacement(to))
+        }
         for (e in entries) {
             if (e.learned && e.count < 2) continue
-            for (h in e.heard) {
-                val re = Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(h) + "(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
-                out = out.replace(re, Regex.escapeReplacement(e.term))
-            }
+            for (h in e.heard) swap(h, e.term)
+            if (keepsCase(e)) swap(e.term, e.term)
         }
         return out
     }
@@ -124,6 +131,19 @@ class Dictionary internal constructor(private val file: File?) {
     }
 
     companion object {
+        /**
+         * [e] is always written in its own capitals, wherever it comes up and whatever the cleanup
+         * did: the user re-capitalized it ("LOL" → "lol"), or added it by hand in capitals no
+         * sentence would give it ("lol", "iPhone", "YODA"). Not a capitalized word alone ("Will"):
+         * every "will" would become a name.
+         */
+        fun keepsCase(e: Entry): Boolean =
+            e.heard.any { it != e.term && it.equals(e.term, ignoreCase = true) } || (!e.learned && unusualCase(e.term))
+
+        /** Capitals a sentence wouldn't give it: all lowercase, or a capital past the first letter. */
+        fun unusualCase(term: String): Boolean =
+            term.count { it.isLetter() } >= 2 && (term == term.lowercase() || term.drop(1).any { it.isUpperCase() })
+
         @Volatile private var instance: Dictionary? = null
         fun of(context: Context): Dictionary = instance ?: synchronized(this) {
             instance ?: Dictionary(File(context.applicationContext.filesDir, "dictionary.json")).also { instance = it }

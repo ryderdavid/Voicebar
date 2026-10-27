@@ -50,6 +50,37 @@ class LearningTest {
         assertEquals("for Siona", d.applySure("for Shauna"))
     }
 
+    @Test fun aReCapitalizedWordIsHowTheUserWritesIt() {
+        assertEquals(listOf("LOL" to "lol"), Corrections.casings("That's great LOL see you there", "That's great lol see you there"))
+        assertEquals(listOf("iphone" to "iPhone"), Corrections.casings("my iphone died", "my iPhone died"))
+        assertTrue(Corrections.casings("The plan works", "the plan works").isEmpty(), "a first letter alone is where it fell in a sentence")
+        assertTrue(Corrections.casings("I said hi", "i said hi").isEmpty(), "one letter")
+        assertTrue(Corrections.casings("Meet at 6PM", "Meet at 6pm").isEmpty(), "letters only")
+        assertTrue(Corrections.casings("great LOL", "something else entirely now").isEmpty(), "a rewrite")
+        assertTrue(Corrections.find("great LOL", "great lol").isEmpty(), "and it's not a mishearing for Claude to judge")
+    }
+
+    @Test fun aWordReCapitalizedTwiceIsAlwaysWrittenThatWay() {
+        val d = Dictionary(null)
+        d.add("lol", "LOL", vocabulary = false)
+        assertEquals("Ha LOL", d.applySure("Ha LOL"), "once could be a one-off")
+        d.add("lol", "LOL", vocabulary = false)
+        assertEquals("Ha lol, lol. lol LOLA", d.applySure("Ha LOL, Lol. lol LOLA"), "whole words, whatever the capitals")
+        assertFalse(d.promptSection().contains("\"LOL\""), "capitals aren't a mishearing for the cleanup")
+        assertTrue(Dictionary.keepsCase(d.find("lol")!!))
+    }
+
+    @Test fun aWordAddedInItsOwnCapitalsIsAlwaysWrittenThatWay() {
+        val d = Dictionary(null)
+        d.add("lol", learned = false)
+        d.add("iPhone", learned = false)
+        d.add("Will", learned = false)
+        d.add("ok", learned = true)
+        assertEquals("lol my iPhone will do. OK", d.applySure("LOL my IPHONE will do. OK"))
+        assertFalse(Dictionary.keepsCase(d.find("Will")!!), "a capitalized name would take every \"will\"")
+        assertFalse(Dictionary.keepsCase(d.find("ok")!!), "learned vocabulary, not a spelling the user chose")
+    }
+
     @Test fun undoPutsItBack() {
         val d = Dictionary(null)
         val before = d.find("Ezra")
