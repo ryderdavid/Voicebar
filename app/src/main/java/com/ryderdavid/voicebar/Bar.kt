@@ -10,7 +10,7 @@ object Bar {
      */
     /** What one of the seven-button bar's own keys does. In picker order, bottom up: the typing keys nearest the thumb. */
     enum class ExtraKey(val pref: String) {
-        SPACE("space"), BACKSPACE("backspace"), ENTER("enter"), PASTE("paste"), UNDO("undo"), SELECT_ALL("select_all"),
+        SPACE("space"), BACKSPACE("backspace"), ENTER("enter"), PUNCTUATION("punctuation"), PASTE("paste"), UNDO("undo"), SELECT_ALL("select_all"),
         LAST_DICTATION("last_dictation"), FIX_LAST("fix_last"), STYLE("style");
         companion object {
             fun of(pref: String?, default: ExtraKey = SPACE) = entries.firstOrNull { it.pref == pref } ?: default
@@ -39,6 +39,8 @@ object Bar {
         fun onRepeatDictation() {}
         /** Voicebar's keyboard typed [text] (a character or a space). */
         fun onText(text: String) {}
+        /** A mark from the punctuation palette, to go in at the cursor (see [Marks.insertion]). */
+        fun onMark(mark: String) = onText(mark)
         /** A suggestion over Voicebar's keyboard was tapped: [word] replaces the word being typed. */
         fun onSuggestion(word: String) {}
         /** Voicebar's keyboard opened or closed (suggestions and capitals are kept up to date while it's open). */

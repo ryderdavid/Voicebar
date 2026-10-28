@@ -762,6 +762,21 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         ic.commitText(text, 1)
     }
 
+    override fun onMark(mark: String) {
+        val ic = currentInputConnection ?: return
+        ownEdit()
+        keyDuringDictation()
+        swipeAdded = null
+        lastSwipe = null
+        lastFix = null
+        suggestionSpace = false
+        val (back, typed) = Marks.insertion(ic.getTextBeforeCursor(8, 0), mark)
+        ic.beginBatchEdit()
+        if (back > 0) ic.deleteSurroundingText(back, 0)
+        ic.commitText(typed, 1)
+        ic.endBatchEdit()
+    }
+
     override fun onSuggestion(word: String) {
         val ic = currentInputConnection ?: return
         ownEdit()

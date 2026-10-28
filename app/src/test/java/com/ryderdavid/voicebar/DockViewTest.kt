@@ -656,6 +656,7 @@ class DockViewTest {
             assertEquals(bksp, dock.testItem(DockView.Act.BACKSPACE), "⌫ stays next to it with $key")
             tap(DockView.Act.SPACE_ALT)
             if (key == Bar.ExtraKey.FIX_LAST) dock.reset() // it listens for what to fix: back to rest for the next one
+            if (key == Bar.ExtraKey.PUNCTUATION) { assertTrue(dock.testMarks, "the palette"); relayout(); tap(DockView.Act.SPACE_ALT); assertFalse(dock.testMarks) }
         }
         assertEquals<List<Any>>(listOf(Bar.Key.SPACE, Bar.Key.DELETE, Bar.Key.ENTER, Bar.Key.UNDO), keys)
         assertEquals(listOf(Bar.EditAction.PASTE, Bar.EditAction.SELECT_ALL), edits)
@@ -710,6 +711,108 @@ class DockViewTest {
         assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
         menu(DockView.MenuItem.DOCK)
         assertEquals(Prefs.BAR_STYLE_DOCKED, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
+    }
+
+    private fun punctuationKey() {
+        Prefs.get(activity).edit().putString(Prefs.BAR_KEY_ENTER, "punctuation").putString(Prefs.BAR_KEY_FLOAT, "punctuation").commit()
+        dock.reloadSettings()
+        relayout()
+    }
+    private fun mark(k: Any) {
+        val p = assertNotNull(dock.testMarksAt(k), "$k is on the palette")
+        touch(MotionEvent.ACTION_DOWN, p); touch(MotionEvent.ACTION_UP, p); idle(20)
+    }
+
+    @Test fun thePunctuationKeyOpensAPaletteThatStaysUpUntilATapAwayFromIt() {
+        punctuationKey()
+        tap(DockView.Act.ENTER)
+        relayout()
+        assertTrue(dock.testMarks)
+        val box = assertNotNull(dock.testMarksBox)
+        val key = assertNotNull(dock.testItem(DockView.Act.ENTER)).apply { offset(0f, dock.testBarTop) }
+        assertTrue(box.bottom <= key.top, "above its key")
+        assertTrue(box.right <= key.right + 1 && box.right >= key.right - 8 * d - 1, "lined up with the key's right edge, kept off the screen's")
+        assertTrue(box.left >= 0f && box.top >= 0f, "on screen: the window grew for it")
+        mark(DockView.MarkKey("?", false))
+        mark(DockView.MarkKey(",", false))
+        mark(DockView.MarkKey("@", true))
+        assertEquals(listOf("?", ",", "@"), typed, "each mark typed, the recent row's too")
+        assertTrue(dock.testMarks, "still up after each")
+        mark(DockView.MarkBksp)
+        assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys)
+        // a tap away closes it, and does nothing else
+        tap(DockView.Act.MIC)
+        assertFalse(dock.testMarks)
+        assertTrue(talk.isEmpty(), "Voice wasn't started by the tap that closed it")
+        relayout()
+        // and the key opens and closes it again
+        tap(DockView.Act.ENTER); relayout()
+        assertEquals(listOf("@", ",", "?", "!", "&", "#"), dock.testMarksRecent, "the recent row leads with what was just used")
+        tap(DockView.Act.ENTER)
+        assertFalse(dock.testMarks)
+    }
+
+    @Test fun thePalettesPagesSwipeAcrossAndItsDotsJumpToOne() {
+        punctuationKey()
+        tap(DockView.Act.ENTER); relayout()
+        assertEquals(0, dock.testMarksPage)
+        val box = assertNotNull(dock.testMarksBox)
+        val from = assertNotNull(dock.testMarksAt(DockView.MarkKey("!", false)))
+        fun swipe(dx: Float) {
+            touch(MotionEvent.ACTION_DOWN, from)
+            for (i in 1..6) touch(MotionEvent.ACTION_MOVE, PointF(from.x + dx * i / 6, from.y))
+            touch(MotionEvent.ACTION_UP, PointF(from.x + dx, from.y)); idle(20)
+        }
+        swipe(-box.width() / 2)
+        assertEquals(1, dock.testMarksPage, "swiped left: the next page")
+        assertTrue(typed.isEmpty(), "a swipe types nothing")
+        swipe(-box.width() / 2)
+        assertEquals(2, dock.testMarksPage)
+        swipe(-box.width() / 2)
+        assertEquals(2, dock.testMarksPage, "the last page goes no further")
+        swipe(box.width() / 10)
+        assertEquals(2, dock.testMarksPage, "a short drag springs back")
+        mark(DockView.MarkDot(0))
+        assertEquals(0, dock.testMarksPage)
+        mark(DockView.MarkDot(1))
+        mark(DockView.MarkKey("%", false))
+        assertEquals(listOf("%"), typed)
+    }
+
+    @Test fun holdingADottedMarkOffersItsVariants() {
+        punctuationKey()
+        tap(DockView.Act.ENTER); relayout()
+        mark(DockView.MarkDot(1))
+        val dollar = assertNotNull(dock.testMarksAt(DockView.MarkKey("$", false)))
+        touch(MotionEvent.ACTION_DOWN, dollar); idle(400)
+        val pound = assertNotNull(dock.testVariantAt("£"), "€ £ ¥ ¢ above it")
+        assertTrue(pound.y < dollar.y)
+        touch(MotionEvent.ACTION_MOVE, pound); touch(MotionEvent.ACTION_UP, pound); idle(20)
+        assertEquals(listOf("£"), typed)
+        assertNull(dock.testVariantAt("£"), "the strip goes")
+        assertTrue(dock.testMarks, "the palette stays")
+        // a quick tap is just the mark; a mark with no variants does nothing more when held
+        mark(DockView.MarkKey("$", false))
+        val hash = assertNotNull(dock.testMarksAt(DockView.MarkKey("#", false)))
+        touch(MotionEvent.ACTION_DOWN, hash); idle(400); touch(MotionEvent.ACTION_UP, hash); idle(20)
+        assertEquals(listOf("£", "$", "#"), typed)
+    }
+
+    @Test fun floatingThePaletteRisesFromThePillAndUprightItSitsBesideTheColumn() {
+        punctuationKey()
+        floating()
+        tap(DockView.Act.ENTER); relayout()
+        val box = assertNotNull(dock.testMarksBox)
+        val pill = assertNotNull(dock.testItem(DockView.Act.ENTER)).apply { offset(0f, dock.testBarTop) }
+        assertTrue(box.bottom <= pill.top && box.top >= 0f, "above the parked pill, on screen")
+        assertTrue(dock.floatingInsets()!!.second.any { it.contains(box.centerX(), box.centerY()) }, "and it takes touches over the app")
+        tap(DockView.Act.ENTER)
+        assertFalse(dock.testMarks)
+        upright()
+        tap(DockView.Act.ENTER); relayout()
+        val col = assertNotNull(dock.testItem(DockView.Act.ENTER)).apply { offset(0f, dock.testBarTop) }
+        val beside = assertNotNull(dock.testMarksBox)
+        assertTrue(beside.right <= col.left, "beside the column, toward the middle")
     }
 
     @Test fun onlyTheSpaceKeySlidesTheCursor() {

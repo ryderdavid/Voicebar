@@ -42,6 +42,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardReturn
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.EmojiSymbols
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.SelectAll
@@ -534,6 +535,7 @@ private fun ownKeyIcon(key: Bar.ExtraKey) = when (key) {
     Bar.ExtraKey.SPACE -> Icons.Rounded.SpaceBar
     Bar.ExtraKey.BACKSPACE -> Icons.AutoMirrored.Rounded.Backspace
     Bar.ExtraKey.ENTER -> Icons.AutoMirrored.Rounded.KeyboardReturn
+    Bar.ExtraKey.PUNCTUATION -> Icons.Rounded.EmojiSymbols
     Bar.ExtraKey.PASTE -> Icons.Rounded.ContentPaste
     Bar.ExtraKey.UNDO -> Icons.AutoMirrored.Rounded.Undo
     Bar.ExtraKey.SELECT_ALL -> Icons.Rounded.SelectAll
@@ -546,6 +548,7 @@ private val OWN_KEY_CHOICES = listOf(
     Bar.ExtraKey.SPACE to (R.string.bar_key_space to R.string.bar_key_space_summary),
     Bar.ExtraKey.BACKSPACE to (R.string.bar_key_backspace to R.string.bar_key_backspace_summary),
     Bar.ExtraKey.ENTER to (R.string.bar_key_enter to R.string.bar_key_enter_summary),
+    Bar.ExtraKey.PUNCTUATION to (R.string.bar_key_punctuation to R.string.bar_key_punctuation_summary),
     Bar.ExtraKey.PASTE to (R.string.bar_key_paste to R.string.bar_key_paste_summary),
     Bar.ExtraKey.UNDO to (R.string.bar_key_undo to R.string.bar_key_undo_summary),
     Bar.ExtraKey.SELECT_ALL to (R.string.bar_key_select_all to R.string.bar_key_select_all_summary),

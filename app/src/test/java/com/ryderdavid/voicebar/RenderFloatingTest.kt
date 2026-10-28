@@ -41,7 +41,7 @@ class RenderFloatingTest {
         for (style in listOf(Prefs.BAR_STYLE_DOCKED, Prefs.BAR_STYLE_FLOATING)) {
             // docked: the menu too
             val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-            Prefs.get(activity).edit { clear(); putString(Prefs.BAR_STYLE, style); putFloat(Prefs.PILL_X, 0.8f); putFloat(Prefs.PILL_Y, 0.86f) }
+            Prefs.get(activity).edit { clear(); putString(Prefs.BAR_STYLE, style); putFloat(Prefs.PILL_X, 0.8f); putFloat(Prefs.PILL_Y, 0.86f); putString(Prefs.BAR_KEY_ENTER, "punctuation"); putString(Prefs.BAR_KEY_FLOAT, "punctuation") }
             val dock = DockView(activity, null)
             dock.listener = object : Bar.Listener {
                 override fun onKey(key: Bar.Key, repeat: Boolean) {}
@@ -119,6 +119,9 @@ class RenderFloatingTest {
                 dock.clipPreview = "Meet at the Camelback trailhead, 6:40 sharp"
                 tap(DockView.Act.MORE); relayout()
                 shot("$s-3-menu")
+                tap(DockView.Act.MORE); relayout()
+                tap(DockView.Act.ENTER); relayout()
+                shot("$s-6-marks")
                 continue
             }
             // its notices: a warning too long for one line, then a short note
@@ -128,6 +131,13 @@ class RenderFloatingTest {
             dock.showNote("Fixed", null); relayout()
             shot("$s-5-note")
             dock.hideVoice(); idle(400); relayout()
+            // the punctuation palette, then a held $ on its second page
+            tap(DockView.Act.ENTER); relayout()
+            shot("$s-6-marks")
+            dock.testMarksAt(DockView.MarkDot(1))!!.let { ev(MotionEvent.ACTION_DOWN, it.x, it.y); ev(MotionEvent.ACTION_UP, it.x, it.y) }
+            idle(400)
+            dock.testMarksAt(DockView.MarkKey("$", false))!!.let { ev(MotionEvent.ACTION_DOWN, it.x, it.y); idle(450); shot("$s-7-variants"); ev(MotionEvent.ACTION_UP, it.x, it.y) }
+            tap(DockView.Act.ENTER); relayout()
             dock.canPaste = true
             dock.clipPreview = "Meet at the Camelback trailhead, 6:40 sharp"
             tap(DockView.Act.MORE); relayout()

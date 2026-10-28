@@ -129,6 +129,8 @@ object Prefs {
     /** The floating pill's one own key, right of Voice (⌫ unless changed): same choices as [BAR_KEY]. */
     const val BAR_KEY_FLOAT = "bar_key_float"
     const val DEFAULT_BAR_KEY_FLOAT = "backspace"
+    /** The punctuation palette's recent marks, newest first, one per line. */
+    const val MARKS_RECENT = "marks_recent"
     /** The seven-button bar's far-right key (↵ unless changed): same choices as [BAR_KEY]. */
     const val BAR_KEY_ENTER = "bar_key_enter"
     const val DEFAULT_BAR_KEY_ENTER = "enter"
