@@ -1,0 +1,10 @@
+df14f8f747d8c9cb app/src/main/java/com/ryderdavid/voicebar/DockView.kt
+983f04539fb6c745 app/src/main/java/com/ryderdavid/voicebar/PopKeys.kt
+4b9a0d39e73b09df app/src/main/java/com/ryderdavid/voicebar/Bar.kt
+d581b628b84ab3d1 app/src/main/java/com/ryderdavid/voicebar/Marks.kt
+e2bcbe43c2350e48 app/src/main/java/com/ryderdavid/voicebar/SetupWizard.kt
+b958f42e9b6fdc07 app/src/main/java/com/ryderdavid/voicebar/Tips.kt
+664d0bc83f377d21 app/src/main/java/com/ryderdavid/voicebar/SettingsActivity.kt
+3eb7cd3ef67c8dbe app/src/main/java/com/ryderdavid/voicebar/SettingsUi.kt
+351631c0862a6c79 app/src/main/java/com/ryderdavid/voicebar/VoiceprintUi.kt
+cd05fa04e3f5993c app/src/main/res/values/strings.xml
