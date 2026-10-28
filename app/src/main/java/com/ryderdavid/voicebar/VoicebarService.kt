@@ -195,7 +195,10 @@ class VoicebarService : InputMethodService(), Bar.Listener {
                 }
                 override fun onNotCleaned(why: String) {
                     CleanupProblem.save(this@VoicebarService, why)
-                    bar?.showMessage(getString(R.string.not_cleaned, why))
+                    // swiped to send: an uncleaned message isn't sent; it's typed for a look first
+                    val held = sendAfterTalk
+                    if (held) { sendAfterTalk = false; AppLog.log("send", "not sent: the cleanup failed ($why)") }
+                    bar?.showMessage(getString(if (held) R.string.not_cleaned_not_sent else R.string.not_cleaned, why))
                 }
                 override fun onIdle() {
                     (bar as? View)?.post { updateWake() }

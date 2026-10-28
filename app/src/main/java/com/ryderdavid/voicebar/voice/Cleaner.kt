@@ -39,16 +39,20 @@ fun cleanupFailure(t: Throwable, service: String = "Claude"): String = when (t) 
     else -> (t.javaClass.simpleName + (t.message?.let { ": " + it.take(80) } ?: ""))
 }
 
-/** An HTTP failure that usually passes (the model busy or overloaded): worth asking once more. */
-internal fun passing(code: Int) = code >= 500
+/** An HTTP failure that usually passes (the model busy, overloaded or rate-limited): worth asking once more. */
+internal fun passing(code: Int) = code >= 500 || code == 429
 
 /**
- * [once] asked a second time when its first answer wasn't usable and asking again may help: a bad
- * reply is usually a one-off. Not at a pause: the cleanup at the end comes anyway. A timeout or a
- * lost connection throws and isn't asked again (the user is already waiting).
+ * [once] asked a second time when its first try failed and asking again may help: a bad reply, the
+ * service busy or rate-limited, a timeout or a dropped connection (a wrong key or a bad request
+ * isn't asked again). Not at a pause: the cleanup at the end comes anyway.
  */
 internal fun twice(paused: Boolean, service: String, once: () -> Pair<String?, Boolean>): String? {
-    val (text, again) = once()
+    val (text, again) = try { once() } catch (t: java.io.IOException) {
+        if (paused) throw t
+        com.ryderdavid.voicebar.AppLog.log("cleanup", "${cleanupFailure(t, service)}; asking once more")
+        return once().first
+    }
     if (text != null || !again || paused) return text
     com.ryderdavid.voicebar.AppLog.log("cleanup", "$service's first reply wasn't usable; asking once more")
     return once().first

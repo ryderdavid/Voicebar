@@ -279,8 +279,9 @@ class DictationController(
                         (cleanedText?.let { ": " + com.ryderdavid.voicebar.AppLog.excerpt(it) } ?: ""))
                     main(Runnable {
                         if (id == session && state == State.CLEANING) {
-                            deliver(cleanedText ?: all)
+                            // first, so a send waiting on this dictation knows not to go
                             why?.let(ui::onNotCleaned)
+                            deliver(cleanedText ?: all)
                         }
                     })
                 })

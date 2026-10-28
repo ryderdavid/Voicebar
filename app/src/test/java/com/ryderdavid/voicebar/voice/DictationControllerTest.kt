@@ -153,7 +153,7 @@ class DictationControllerTest {
         controller.pause()
         transcriber.finalText = "and bring snacks"
         controller.stop(cancel = false)
-        assertEquals(listOf("result:meet on tuesday and bring snacks", "idle", "notCleaned:RuntimeException: offline"), events.takeLast(3))
+        assertEquals(listOf("notCleaned:RuntimeException: offline", "result:meet on tuesday and bring snacks", "idle"), events.takeLast(3))
     }
 
     @Test fun newWordsAreHeardButAPauseCleanupIsNot() {
@@ -238,7 +238,7 @@ class DictationControllerTest {
         controller.start()
         transcriber.finalText = "hello there"
         controller.stop(cancel = false)
-        assertEquals(listOf("result:hello there", "idle", "notCleaned:IOException: offline"), events.takeLast(3))
+        assertEquals(listOf("notCleaned:IOException: offline", "result:hello there", "idle"), events.takeLast(3))
     }
 
     @Test fun aCleanerThatDeclinesSaysWhy() {
@@ -249,7 +249,7 @@ class DictationControllerTest {
         controller.start()
         transcriber.finalText = "hello there"
         controller.stop(cancel = false)
-        assertEquals(listOf("result:hello there", "idle", "notCleaned:Claude answered 529: Overloaded"), events.takeLast(3))
+        assertEquals(listOf("notCleaned:Claude answered 529: Overloaded", "result:hello there", "idle"), events.takeLast(3))
     }
 
     @Test fun withoutCleanupTheRawTextIsTyped() {

@@ -253,6 +253,24 @@ class VoiceProtocolTest {
         assertEquals("Claude's reply was far longer than what you said", c.problem)
     }
 
+    @Test fun aTimeoutIsAskedOnceMore() {
+        server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"<text>Late.</text>"}]}""").setHeadersDelay(3, java.util.concurrent.TimeUnit.SECONDS))
+        server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"<text>Meet on Wednesday.</text>"}]}"""))
+        val quick = client.newBuilder().callTimeout(1, java.util.concurrent.TimeUnit.SECONDS).build()
+        val c = ClaudeCleaner("k", "m", quick, server.url("/").toString().trimEnd('/'))
+        assertEquals("Meet on Wednesday.", c.clean("meet on wednesday"))
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun twoTimeoutsGiveUpWithTheTimeout() {
+        repeat(2) { server.enqueue(MockResponse().setBody("{}").setHeadersDelay(3, java.util.concurrent.TimeUnit.SECONDS)) }
+        val quick = client.newBuilder().callTimeout(1, java.util.concurrent.TimeUnit.SECONDS).build()
+        val c = ClaudeCleaner("k", "m", quick, server.url("/").toString().trimEnd('/'))
+        val t = runCatching { c.clean("hi") }.exceptionOrNull()
+        assertTrue(t is java.io.InterruptedIOException, "the second timeout is what's reported")
+        assertEquals(2, server.requestCount)
+    }
+
     @Test fun aPauseAndAWrongKeyAreAskedOnlyOnce() {
         server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"Here is the cleaned text"}]}"""))
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"type":"error","error":{"message":"invalid x-api-key"}}"""))

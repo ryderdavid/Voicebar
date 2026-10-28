@@ -567,6 +567,7 @@
     <string name="chat_care_summary">When auto-listen starts in a messaging or email app, words show in the bar instead of the message until you finish, and if it ends on its own they wait for a tap. It also stops after a minute untouched.</string>
     <string name="held_tap_to_add">Tap to add: “%1$s”</string>
     <string name="not_cleaned">Not cleaned up (%1$s), typed as spoken</string>
+    <string name="not_cleaned_not_sent">Not cleaned up (%1$s), so not sent: typed as spoken</string>
     <string name="cleanup_problem_group">Cleanup</string>
     <string name="cleanup_problem_title">Last cleanup problem</string>
     <string name="dictation_copied">No text box selected: copied to the clipboard</string>

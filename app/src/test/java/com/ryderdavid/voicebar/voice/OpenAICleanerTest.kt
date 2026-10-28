@@ -40,9 +40,10 @@ class OpenAICleanerTest {
     }
 
     @Test fun anErrorSaysWhy() {
-        val s = MockWebServer().apply { enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"Rate limit reached"}}""")); start() }
+        val s = MockWebServer().apply { repeat(2) { enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"Rate limit reached"}}""")) }; start() }
         val c = OpenAICleaner("k", OpenAICleanupRequest.LUNA, OkHttpClient(), s.url("").toString().trimEnd('/'))
         assertNull(c.clean("hello there"))
+        assertEquals(2, s.requestCount, "rate-limited: asked once more")
         s.shutdown()
         assertEquals("ChatGPT answered 429: Rate limit reached", c.problem)
     }
