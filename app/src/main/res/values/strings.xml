@@ -268,7 +268,7 @@
     <string name="wiz_skipped_later">Skipped · you can add it in Settings</string>
 
     <string name="wiz_welcome_title">Voicebar</string>
-    <string name="wiz_welcome_body">Talk instead of type. A one-row voice bar that sits under your apps; Gboard stays around for typing.</string>
+    <string name="wiz_welcome_body">Talk instead of type. A slim voice bar under your apps, docked or floating, with its own keyboard when you need to type.</string>
     <string name="wiz_welcome_list">What you\'ll set up</string>
     <string name="wiz_w_keyboards">Two keyboards</string>
     <string name="wiz_w_keyboards_body">Voicebar for talking, Gboard for typing, one tap apart</string>
@@ -357,7 +357,7 @@
     <string name="wiz_co_foot">Accessibility lets Voicebar see and act on what\'s on screen. It reads the screen only while you dictate or use hands-free, never password fields, and sends it only to ElevenLabs and Claude with your keys.</string>
 
     <string name="wiz_done_title">You\'re set</string>
-    <string name="wiz_done_body">Tap any text box and Voicebar comes up. Tap the mic and talk.</string>
+    <string name="wiz_done_body">Tap any text box and Voicebar comes up. Tap Voice and talk.</string>
     <string name="wiz_sum_keyboards">Keyboards turned on</string>
     <string name="wiz_sum_switch">Voicebar chosen</string>
     <string name="wiz_sum_mic">Microphone</string>
@@ -401,6 +401,10 @@
     <string name="tip_abc">Tap ABC for Voicebar\'s keyboard; pull its handle down to bring the bar back. Hold ABC to switch to Gboard; the mic button on Gboard brings you back here.</string>
     <string name="tip_cursor_title">Move the cursor</string>
     <string name="tip_cursor">Tap for a trackpad with select all, cut, copy and paste. Or slide along the Voice pill.</string>
+    <string name="tip_menu_title">The menu</string>
+    <string name="tip_menu">Paste what you copied, bring back a recent dictation, or make the bar float.</string>
+    <string name="tip_own_title">Keys you choose</string>
+    <string name="tip_own">Hold this key to pick what it does: space, enter, punctuation and more.</string>
     <string name="tip_bksp_title">Hold to keep deleting</string>
     <string name="tip_bksp">Tap ⌫ for one letter; tap then hold to clear words fast.</string>
     <string name="tip_voicebar_title">Say “voice bar”</string>

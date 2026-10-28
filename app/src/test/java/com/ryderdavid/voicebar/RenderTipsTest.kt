@@ -35,15 +35,13 @@ class RenderTipsTest {
         Prefs.get(activity).edit { clear() }
         val r = activity.resources
         fun s(id: Int) = r.getString(id)
-        val tips = listOf(
-            Triple("1-voice", DockView.Tip("voice", s(R.string.tip_voice_title), s(R.string.tip_voice), 1, 6), false),
-            Triple("2-finish", DockView.Tip("voice", s(R.string.tip_finish_title), s(R.string.tip_finish), 2, 6), false),
-            Triple("3-abc", DockView.Tip("abc", s(R.string.tip_abc_title), s(R.string.tip_abc), 3, 6), false),
-            Triple("4-cursor", DockView.Tip("cursor", s(R.string.tip_cursor_title), s(R.string.tip_cursor), 4, 6), false),
-            Triple("5-bksp", DockView.Tip("bksp", s(R.string.tip_bksp_title), s(R.string.tip_bksp), 5, 6), false),
-            Triple("6-voicebar", DockView.Tip("voice", s(R.string.tip_voicebar_title), s(R.string.tip_voicebar), 6, 6), false),
-            Triple("7-ask", DockView.Tip("abc", s(R.string.tip_ask_title), s(R.string.tip_ask), 3, 6, ask = true), false),
-            Triple("8-polishing", null, true),
+        // every step of the tour, as Tips.Id has it
+        val n = Tips.Id.entries.size
+        val tips = Tips.Id.entries.mapIndexed { i, id ->
+            Triple("${i + 1}-${id.name.lowercase()}", DockView.Tip(id.anchor, s(id.title), s(id.body), i + 1, n), false)
+        } + listOf(
+            Triple("ask", DockView.Tip("abc", s(R.string.tip_ask_title), s(R.string.tip_ask), 3, n, ask = true), false),
+            Triple("polishing", null, true),
         )
         val out = File("build/previews/tips").apply { mkdirs() }
         val d = r.displayMetrics.density

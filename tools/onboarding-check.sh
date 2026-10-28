@@ -1,7 +1,8 @@
 #!/bin/bash
-# Does the onboarding need a look? The intro video (video/) and the in-app walkthrough (the setup
-# wizard and first-run tips) show the app as it was when they were last reviewed. When the files
-# that decide what a user sees have changed since then, this says so.
+# Does the onboarding need refreshing? The intro video (video/) and the in-app walkthrough (the setup
+# wizard and first-run tips) show the app as it was when they were last refreshed. When the files
+# that decide what a user sees have changed since then, this kicks off a refresh (the
+# onboarding-refresh skill), storyboard and all.
 #
 #   tools/onboarding-check.sh            exit 1 and list what changed, when there's something to review
 #   tools/onboarding-check.sh --stop     the same as a Claude Code Stop hook (reads its JSON on stdin)
@@ -37,7 +38,7 @@ changed=$(diff <(fingerprint) "$RECORD" | grep '^<' | awk '{print $3}' | sort -u
 [ -z "$changed" ] && exit 0
 
 list=$(printf '%s' "$changed" | sed 's|^.*/||' | paste -sd, - | sed 's/,/, /g')
-msg="Onboarding check: app-facing files changed since the intro video and in-app walkthrough were last reviewed ($list). Check whether video/ (the intro video's storyboard and scenes) or the setup wizard and first-run tips (SetupWizard.kt, Tips.kt) now show anything out of date. Update them or file the update as a bead (bd), and say what you found in your reply. Then run tools/onboarding-check.sh --reviewed to record it."
+msg="Onboarding refresh needed: app-facing files changed since the intro video, first-run tips and setup wizard were last refreshed ($list). Refresh them now, storyboard and all, by following the onboarding-refresh skill (.claude/skills/onboarding-refresh/SKILL.md): storyboard, re-voice and re-film the video from the real bar, update the tips and wizard, then run tools/onboarding-check.sh --reviewed. If the changes are invisible to a user (internal refactors, logging, tests), say so in your reply and just run --reviewed."
 
 if [ "$1" = "--stop" ]; then
   # Claude Code: keep the turn going once, with the reason as the next instruction

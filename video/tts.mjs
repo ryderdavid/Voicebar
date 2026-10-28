@@ -1,13 +1,19 @@
 // Narration for each scene with ElevenLabs Eleven v4, with character timings for the captions.
-// ELEVENLABS_API_KEY=… node tts.mjs [voiceId]   (then: node timeline.mjs)
+// ELEVENLABS_API_KEY=… node tts.mjs [voiceId] [--only id,id]   (then: node timeline.mjs)
+// --only re-voices just those scenes (changed or new), keeping the rest as they were.
 import fs from 'node:fs';
 const key = process.env.ELEVENLABS_API_KEY;
 if (!key) { console.error('Set ELEVENLABS_API_KEY'); process.exit(1); }
-const voice = process.argv[2] || process.env.VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
+const args = process.argv.slice(2);
+const oi = args.indexOf('--only');
+const only = oi >= 0 ? args.splice(oi, 2)[1].split(',') : null;
+// Sarah, the voice the video has always used
+const voice = args[0] || process.env.VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
 const script = JSON.parse(fs.readFileSync('src/script.json', 'utf8'));
 fs.mkdirSync('public/narration', {recursive: true});
 for (let i = 0; i < script.length; i++) {
   const s = script[i];
+  if (only && !only.includes(s.id)) continue;
   const body = {
     text: s.text,
     model_id: 'eleven_v4',

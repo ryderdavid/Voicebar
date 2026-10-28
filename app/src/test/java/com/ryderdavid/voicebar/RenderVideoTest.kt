@@ -202,7 +202,8 @@ class RenderVideoTest {
                 File(out, "%04d.png".format(frame)).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 bmp.recycle()
                 fields += field
-                insets += dock.height - dock.floatRoom()
+                // where the app's content ends: above the floating pill when it floats, else the keyboard's top
+                insets += dock.floatingInsets()?.first?.let { dock.height - it } ?: (dock.height - dock.floatRoom())
             }
             val meta = JSONObject()
                 .put("frames", s.frames).put("w", w).put("h", h)
@@ -283,6 +284,9 @@ class RenderVideoTest {
                         (1..4).map { k -> t0 + (i - 1) * 5 + k to { val a = key(letters[i - 1].toString()); val b = key(letters[i].toString()); val t = k / 4f; PointF(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - 10 * d * sin(t * Math.PI).toFloat()) } }
                     }, t0 + (letters.length - 1) * 5 + 2)
                     at(t0 + (letters.length - 1) * 5 + 3) { field = Field("Sounds great", false); dock.keySuggestions = listOf("great", "greet", "treat") }
+                    // ⌫ right after a swipe takes the whole word back
+                    tap(cue("backspace") + 4) { dock.testKeys.testKind(PopKeys.Kind.BACK)!!.let { PointF(it.centerX(), it.centerY() + dock.testBarTop) } }
+                    at(cue("backspace") + 6) { field = Field("Sounds ", false); dock.keySuggestions = emptyList() }
                 }
                 "pause" -> {
                     alreadyTalking("So let's meet at the trailhead at nine")
@@ -298,8 +302,8 @@ class RenderVideoTest {
                 "keys" -> {
                     field = Field("", false)
                     val t0 = cue("hold")
-                    val rows = listOf("space" to Bar.ExtraKey.SPACE, "backspace" to Bar.ExtraKey.BACKSPACE, "paste" to Bar.ExtraKey.PASTE,
-                        "undo" to Bar.ExtraKey.UNDO, "fix" to Bar.ExtraKey.FIX_LAST)
+                    val rows = listOf("space" to Bar.ExtraKey.SPACE, "backspace" to Bar.ExtraKey.BACKSPACE, "enter" to Bar.ExtraKey.ENTER,
+                        "punctuation" to Bar.ExtraKey.PUNCTUATION, "fix" to Bar.ExtraKey.FIX_LAST)
                     // held until the column opens, then from choice to choice as each is named
                     val open = t0 + 14
                     glide(t0, { item(DockView.Act.SPACE_ALT) },
@@ -318,6 +322,51 @@ class RenderVideoTest {
                     for (i in said.indices) at(from + (to - from) * i / said.size) { dock.showLiveText(said.take(i + 1).joinToString(" ")) }
                     tap(cue("fixed") - 4) { item(DockView.Act.MIC) }
                     polish(cue("fixed") - 1, "Let's give it one extra Broad look.", "Let's give it one extra broad look.")
+                }
+                "marks" -> {
+                    // the key right of ⌫ set to Punctuation
+                    Prefs.get(activity).edit { putString(Prefs.BAR_KEY_ENTER, "punctuation") }
+                    dock.reloadSettings(); relayout(); dock.settle()
+                    field = Field("See you at nine", false)
+                    tap(cue("opens")) { item(DockView.Act.ENTER) }
+                    tap(cue("recent") + 2) { dock.testMarksAt(DockView.MarkKey("!", true))!! }
+                    at(cue("recent") + 4) { field = Field("See you at nine!", false) }
+                    // swiped across to the second page
+                    drag(cue("swipe"), 10, { dock.testMarksAt(DockView.MarkKey(":", false))!! }, -180 * d, 0f)
+                    // $ held for its variants, the finger sliding over them, then off the strip (nothing typed)
+                    val hold = cue("hold") + 4
+                    glide(hold, { dock.testMarksAt(DockView.MarkKey("$", false))!! },
+                        listOf<Pair<Int, () -> PointF>>(hold + 14 to { dock.testMarksAt(DockView.MarkKey("$", false))!! },
+                            cue("euros") to { dock.testVariantAt("€") ?: dock.testMarksAt(DockView.MarkKey("$", false))!! },
+                            cue("euros") + 10 to { dock.testVariantAt("€")?.let { PointF(it.x, it.y - 160 * d) } ?: dock.testMarksAt(DockView.MarkKey("$", false))!! }),
+                        cue("euros") + 12)
+                    // a tap away, above the palette: it closes, and the tap goes no further
+                    // where it's tapped is taken while the palette is up (the release comes after it's gone)
+                    val away = lazy { dock.testMarksBox!!.let { b -> PointF(b.centerX() - 60 * d, b.top - 70 * d) } }
+                    tap(cue("tap", after = s.words.indexOfFirst { it.w.lowercase().startsWith("euros") })) { away.value }
+                }
+                "menu" -> {
+                    dock.canPaste = true
+                    dock.clipPreview = "Meet at the north entrance of the trailhead"
+                    dock.dictations = listOf(
+                        DictationHistory.Entry(System.currentTimeMillis() - 120_000, "see you at nine", "See you at nine."),
+                        DictationHistory.Entry(System.currentTimeMillis() - 900_000, "lets meet at the trailhead", "Let's meet at the trailhead."),
+                        DictationHistory.Entry(System.currentTimeMillis() - 3_600_000, "bring snacks", "Bring snacks!"))
+                    field = Field("", false)
+                    tap(cue("menu")) { item(DockView.Act.MORE) }
+                    tap(cue("recent")) { dock.testMenuAt(DockView.MenuItem.DICTATIONS)!! }
+                    tap(cue("let")) { dock.testMenuAt(DockView.MenuBack)!! }
+                    tap(cue("float") + 2) { dock.testMenuAt(DockView.MenuItem.FLOAT)!! }
+                }
+                "float" -> {
+                    Prefs.get(activity).edit { putString(Prefs.BAR_STYLE, Prefs.BAR_STYLE_FLOATING) }
+                    dock.reloadSettings(); relayout(); dock.settle()
+                    field = Field("", false)
+                    // dragged up by its grip, off the bottom and over the app
+                    drag(cue("drag"), 16, { item(DockView.Act.GRIP) }, 0f, -150 * d)
+                    // ☰ › Turn it upright
+                    tap(cue("stand")) { item(DockView.Act.MORE) }
+                    tap(cue("upright") + 2) { dock.testMenuAt(DockView.MenuItem.UPRIGHT)!! }
                 }
                 "commands" -> {
                     alreadyTalking("See you at nine")

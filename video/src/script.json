@@ -3,12 +3,15 @@
   {"id": "talk", "title": "Tap Voice and talk", "text": "Tap Voice and just start talking. Your words land in the text box as you speak."},
   {"id": "tidy", "title": "Pause, and it tidies up", "text": "Pause to think whenever you like. What you've said gets tidied up: punctuation, capitals, and the ums taken out."},
   {"id": "format", "title": "Say the formatting", "text": "Say the formatting too. Title case, the lord of the rings, end title case. Quotes and parentheses work the same way."},
-  {"id": "finish", "title": "Tap or swipe to finish", "text": "Tap the pill when you're done. Swipe it right to send, or left to throw it away. Before it sends, it gives your message one last read."},
+  {"id": "finish", "title": "Tap or swipe to finish", "text": "Tap the pill when you're done. Swipe it right to send, or left to throw it away. Before it sends, it gives your message one last read, and if the cleanup can't finish, it holds the message for you to check."},
   {"id": "keyboard", "title": "Voicebar's keyboard", "text": "Need to type? Tap ABC, and a full keyboard takes over the bar, with suggestions as you go. Pull its handle down to bring the bar back."},
-  {"id": "swipe", "title": "Swipe to type", "text": "Or slide across the letters, and swipe a whole word at once."},
+  {"id": "swipe", "title": "Swipe to type", "text": "Or slide across the letters to swipe a whole word, and backspace takes the whole word back."},
   {"id": "pause", "title": "Pause to fix something", "text": "While you talk, Cursor and ABC stay close. Tap one to fix something, and listening picks up again when you're done."},
-  {"id": "keys", "title": "Two keys you choose", "text": "Two of the bar's keys are yours. Hold one to choose what it does: space, backspace, paste, undo, or fix last dictation."},
+  {"id": "keys", "title": "Keys you choose", "text": "Three of the bar's keys are yours. Hold one to choose what it does: space, backspace, enter, punctuation, or fix last dictation."},
+  {"id": "marks", "title": "Punctuation at hand", "text": "Set one to punctuation, and it opens a palette of marks. Your recent ones come first, swipe for more, and hold a dotted one for other kinds, like curly quotes or euros. Tap anywhere else to close it."},
   {"id": "fix", "title": "Fix last dictation", "text": "With fix last dictation, just say what went wrong, like: broad should be lowercase. It's fixed right in the box."},
+  {"id": "menu", "title": "The menu", "text": "The menu holds the rest: paste what you copied, bring back a recent dictation, or let the bar float."},
+  {"id": "float", "title": "A floating bar", "text": "Floating, it's a small pill over your app. Drag it wherever suits you, or stand it upright against the edge."},
   {"id": "commands", "title": "Say “voice bar”", "text": "Or say voice bar, then send, done, or cancel, and it happens hands off."},
   {"id": "outro", "title": "You're all set", "text": "That's it. Watch this again anytime under How to use it in Voicebar's settings. Happy talking."}
 ]

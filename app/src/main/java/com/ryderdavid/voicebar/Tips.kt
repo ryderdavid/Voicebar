@@ -14,6 +14,8 @@ object Tips {
         FINISH("voice", R.string.tip_finish_title, R.string.tip_finish),
         ABC("abc", R.string.tip_abc_title, R.string.tip_abc),
         CURSOR("cursor", R.string.tip_cursor_title, R.string.tip_cursor),
+        MENU("more", R.string.tip_menu_title, R.string.tip_menu),
+        OWN_KEYS("space|enter", R.string.tip_own_title, R.string.tip_own),
         BKSP("bksp", R.string.tip_bksp_title, R.string.tip_bksp),
         VOICEBAR("voice", R.string.tip_voicebar_title, R.string.tip_voicebar),
     }

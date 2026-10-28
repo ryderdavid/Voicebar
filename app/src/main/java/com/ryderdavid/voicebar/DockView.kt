@@ -527,6 +527,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
      */
     data class Tip(val anchor: String, val title: String, val body: String, val n: Int, val of: Int, val ask: Boolean = false)
 
+    /** Where a tip points: its anchor's control, the first of "a|b" that's on the bar (own keys sit in different slots docked and floating). */
+    private fun tipAnchor(t: Tip) = t.anchor.split('|').firstNotNullOfOrNull { anims[it]?.rect }
+
     var tip: Tip? = null
         set(v) { if (field != v) { field = v; tipAt = SystemClock.uptimeMillis(); tipRoom = measureTipRoom(); requestLayout(); invalidate() } }
     private var tipAt = 0L
@@ -542,7 +545,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
     fun tipRect(): RectF? {
         if (collapsed || vert) return null // nothing on the bar to point at
         val t = tip ?: return null
-        val a = anims[t.anchor]?.rect ?: return null
+        val a = tipAnchor(t) ?: return null
         val w = tipWidth()
         val h = tipHeight(t)
         val left = (a.centerX() - w / 2).coerceIn(dp(8f), width - w - dp(8f))
@@ -568,7 +571,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     private fun drawTip(canvas: Canvas, now: Long) {
         val t = tip ?: return
-        val a = anims[t.anchor]?.rect ?: return
+        val a = tipAnchor(t) ?: return
         val pal = palette
         val e = ((now - tipAt) / 280f).coerceIn(0f, 1f).let { 1f - (1f - it) * (1f - it) }
         val w = tipWidth()

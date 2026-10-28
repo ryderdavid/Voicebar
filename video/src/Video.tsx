@@ -34,7 +34,8 @@ const at = (s: Scene, w: string, after = 0) => {
 const Caption: React.FC<{s: Scene; f: number}> = ({s, f}) => {
   const t = f / FPS - s.lead;
   return (
-    <div style={{position: 'absolute', left: 80, right: 80, top: 250, font: `400 46px/1.32 ${FONT}`, color: C.text}}>
+    // a longer line steps down a size, so it stays above the phone (at most five lines)
+    <div style={{position: 'absolute', left: 80, right: 80, top: 250, font: `400 ${s.text.length > 180 ? 38 : 46}px/1.32 ${FONT}`, color: C.text}}>
       {s.words.map((w, i) => <span key={i} style={{opacity: ease(t, w.start - 0.05, w.start + 0.12, 0.28, 1)}}>{w.w} </span>)}
     </div>
   );
@@ -149,7 +150,7 @@ const Outro: React.FC<{s: Scene; f: number}> = ({s, f}) => {
     <Screen f={f}>
       <div style={{position: 'absolute', inset: 0, background: '#F2F3FA', padding: '70px 40px'}}>
         <div style={{font: `400 64px ${FONT}`, color: C.text, marginBottom: 50, opacity: 1 - logo}}>Voicebar</div>
-        {[['Bar and Gboard', 'Layout, your two keys, the way back'], ['Voice typing', 'Speech, listening, voice filters'], ['Cleanup', 'Model, sending, the last look'], ['How to use it', 'Watch this video again'], ['Try it', 'A place to practice']].map(([t, sub], i) => (
+        {[['Bar and Gboard', 'Layout, your keys, floating'], ['Voice typing', 'Speech, listening, only my voice'], ['Cleanup', 'Model, sending, the last look'], ['How to use it', 'Watch this video again'], ['Try it', 'A place to practice']].map(([t, sub], i) => (
           <div key={t} style={{background: i === 3 ? `rgba(216,226,255,${0.4 + 0.6 * hl})` : '#fff', borderRadius: i === 0 ? '44px 44px 10px 10px' : i === 4 ? '10px 10px 44px 44px' : 10, marginBottom: 6, padding: '34px 40px', opacity: 1 - logo,
             boxShadow: i === 3 ? `0 0 0 ${6 * hl}px ${C.pill}55` : 'none', transform: i === 3 ? `scale(${1 + 0.03 * hl})` : 'none'}}>
             <div style={{font: `500 40px ${FONT}`, color: C.text}}>{t}</div>
