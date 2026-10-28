@@ -100,9 +100,10 @@ fun VoiceprintRows(openPage: () -> Unit): List<@Composable () -> Unit> {
         },
         {
             SwitchRow(stringResource(R.string.vp_switch),
-                if (on && !has) stringResource(R.string.vp_needs_setup) else stringResource(R.string.vp_switch_summary), on) { v ->
+                stringResource(if (on && !has) R.string.vp_first_voice else R.string.vp_switch_summary), on) { v ->
                 on = v; prefs.edit { putBoolean(Prefs.VOICEPRINT, v) }
-                if (v) { Voiceprint.pack.download(context); if (!Voiceprint.has(context)) openPage() }
+                // no voiceprint needed: without one, the first voice at the phone is the one kept
+                if (v) Voiceprint.pack.download(context)
             }
         },
         {

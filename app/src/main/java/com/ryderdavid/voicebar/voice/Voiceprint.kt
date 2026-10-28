@@ -47,8 +47,11 @@ object Voiceprint {
     fun enabled(context: Context) = Prefs.get(context).getBoolean(Prefs.VOICEPRINT, false)
     fun strength(context: Context) = Prefs.get(context).getInt(Prefs.VOICEPRINT_STRENGTH, DEFAULT_STRENGTH)
 
-    /** Turned on, downloaded and recorded: speech is filtered. */
-    fun active(context: Context) = enabled(context) && pack.ready(context) && load(context) != null
+    /**
+     * Turned on and downloaded: speech is filtered, against the voiceprint when one is recorded,
+     * else (in a dictation started by hand) against the first voice heard ([VoiceGate]).
+     */
+    fun active(context: Context) = enabled(context) && pack.ready(context)
 
     // ---------------------------------------------------------------- the stored print
 

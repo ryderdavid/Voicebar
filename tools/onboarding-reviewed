@@ -6,5 +6,5 @@ e2bcbe43c2350e48 app/src/main/java/com/ryderdavid/voicebar/SetupWizard.kt
 b958f42e9b6fdc07 app/src/main/java/com/ryderdavid/voicebar/Tips.kt
 664d0bc83f377d21 app/src/main/java/com/ryderdavid/voicebar/SettingsActivity.kt
 3eb7cd3ef67c8dbe app/src/main/java/com/ryderdavid/voicebar/SettingsUi.kt
-351631c0862a6c79 app/src/main/java/com/ryderdavid/voicebar/VoiceprintUi.kt
-cd05fa04e3f5993c app/src/main/res/values/strings.xml
+571d4c74d6814c46 app/src/main/java/com/ryderdavid/voicebar/VoiceprintUi.kt
+8e0afc9ba3a739df app/src/main/res/values/strings.xml

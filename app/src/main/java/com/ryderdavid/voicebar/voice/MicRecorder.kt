@@ -76,6 +76,15 @@ class MicRecorder : AudioSource {
         const val SAMPLE_RATE = 16000
         const val CHUNK_BYTES = SAMPLE_RATE * 2 / 10 // 100 ms
 
+        /** Loudness of samples in -1..1, on the same 0..1 scale as [level]. */
+        fun level(samples: FloatArray): Float {
+            if (samples.isEmpty()) return 0f
+            var sum = 0.0
+            for (x in samples) sum += x.toDouble() * x
+            val db = 20 * log10(sqrt(sum / samples.size).coerceAtLeast(1e-6))
+            return ((db + 50) / 40).toFloat().coerceIn(0f, 1f)
+        }
+
         /** Loudness of a PCM chunk mapped to 0..1 (about -50 dBFS to -10 dBFS). */
         fun level(pcm: ByteArray): Float {
             var sum = 0.0

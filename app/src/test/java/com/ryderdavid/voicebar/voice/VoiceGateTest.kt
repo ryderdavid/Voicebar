@@ -87,6 +87,40 @@ class VoiceGateTest {
         assertTrue(out.all().size >= rate * 2, "a second in, at least the first half-second is out")
     }
 
+    /** No voiceprint: the first voice at the phone (louder than [near]) is the one kept. */
+    private fun runFirst(vararg parts: ByteArray, learned: MutableList<Boolean>? = null): ByteArray {
+        val out = Out()
+        val g = VoiceGate(loud, byPitch, null, threshold = 0.5f, emit = { out.bytes.write(it) }, near = 0.7f, onLearned = { learned?.add(true) })
+        val all = parts.fold(ByteArray(0)) { x, y -> x + y }
+        var i = 0
+        while (i < all.size) { val n = minOf(3200, all.size - i); g.accept(all.copyOfRange(i, i + n)); i += n }
+        g.flush()
+        return out.all()
+    }
+
+    @Test fun withoutAVoiceprintTheFirstVoiceIsKeptAndOthersSilenced() {
+        val learned = mutableListOf<Boolean>()
+        val out = runFirst(tone(200, 2f), quiet(1f), tone(600, 2f), quiet(0.5f), tone(200, 1.5f), learned = learned)
+        assertEquals(listOf(true), learned, "learned once, from the first speech")
+        assertTrue(energy(out, 0f, 2f) > 0.1, "the first voice, from its first word")
+        assertTrue(energy(out, 3f, 5f) < 0.001, "another voice")
+        assertTrue(energy(out, 5.5f, 7f) > 0.1, "the first voice again")
+    }
+
+    @Test fun itsWhoeverSpeaksFirstNotAFixedVoice() {
+        val out = runFirst(tone(600, 2f), quiet(1f), tone(200, 2f))
+        assertTrue(energy(out, 0f, 2f) > 0.1, "the high voice started it")
+        assertTrue(energy(out, 3f, 5f) < 0.001, "so the low one is the other voice")
+    }
+
+    @Test fun aDistantVoiceBeforeYouSpeakIsntTakenAsYours() {
+        // a TV across the room, then you at the phone, then the TV again (now louder)
+        val out = runFirst(tone(600, 1.5f, amp = 0.08f), quiet(0.5f), tone(200, 2f), quiet(0.5f), tone(600, 1.5f))
+        assertTrue(energy(out, 0f, 1.5f) < 0.001, "too quiet to be whoever started this")
+        assertTrue(energy(out, 2f, 4f) > 0.1, "you")
+        assertTrue(energy(out, 4.5f, 6f) < 0.001, "the TV isn't you, however loud")
+    }
+
     @Test fun strengthMapsToThresholds() {
         assertEquals(0.30f, Voiceprint.threshold(1), 1e-4f)
         assertEquals(0.46f, Voiceprint.threshold(3), 1e-4f)

@@ -79,7 +79,8 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     private val dictation: DictationController by lazy {
         DictationController(
             audio = MicRecorder(),
-            transcriberFactory = { pickTranscriber()?.let { com.ryderdavid.voicebar.voice.VoiceFilterTranscriber.wrap(this, it) } },
+            // started by hand, whoever's talking at the phone first is taken as the user (Only my voice without a voiceprint)
+            transcriberFactory = { pickTranscriber()?.let { com.ryderdavid.voicebar.voice.VoiceFilterTranscriber.wrap(this, it, firstVoice = !autoStartPending) } },
             cleanerFactory = {
                 val polish = forcePolish
                 forcePolish = false
@@ -1801,7 +1802,7 @@ class VoicebarService : InputMethodService(), Bar.Listener {
     private val fixer: DictationController by lazy {
         DictationController(
             audio = MicRecorder(),
-            transcriberFactory = { pickTranscriber()?.let { com.ryderdavid.voicebar.voice.VoiceFilterTranscriber.wrap(this, it) } },
+            transcriberFactory = { pickTranscriber()?.let { com.ryderdavid.voicebar.voice.VoiceFilterTranscriber.wrap(this, it, firstVoice = true) } },
             cleanerFactory = { null },
             ui = object : DictationController.Ui {
                 override fun onListening() { bar?.showListening() }

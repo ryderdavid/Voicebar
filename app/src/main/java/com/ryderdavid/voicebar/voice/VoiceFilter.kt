@@ -12,19 +12,32 @@ import java.util.concurrent.Executors
  *
  * Voices talking over each other at the same moment can't be pulled apart this way; it handles
  * turns (someone else speaking between your sentences, a TV, a conversation nearby).
+ *
+ * With no voiceprint ([print] null), the first voice is the one kept: the first [LEARN_SECONDS] of
+ * speech at least as loud as [near] (someone talking at the phone, as the user does) become the
+ * reference. Until then, speech that close goes through and quieter speech (a TV, a room away) is
+ * silenced, since whoever started the dictation is the one holding the phone.
  * Single-threaded: call everything from one thread.
  */
 class VoiceGate(
     private val speech: SpeechTest,
     private val embed: (FloatArray) -> FloatArray,
-    private val print: FloatArray,
+    print: FloatArray?,
     private val threshold: Float,
     private val emit: (ByteArray) -> Unit,
     /** Each judgement: the similarity (null when there was too little speech to tell) and the verdict. */
     private val onVerdict: ((Float?, Boolean) -> Unit)? = null,
+    /** Learning the first voice: how loud (0..1, as [MicRecorder.level]) speech must be to count as it. */
+    private val near: Float = 0f,
+    /** The first voice is learned. */
+    private val onLearned: (() -> Unit)? = null,
     private val sampleRate: Int = 16000,
     blockMs: Int = 500,
 ) {
+    private var print: FloatArray? = print
+    private val learnSamples = (sampleRate * LEARN_SECONDS).toInt()
+    private val learning = FloatArrayBuilder()
+    private var blockNear = 0
     private val blockSamples = sampleRate * blockMs / 1000
     private val windowSamples = sampleRate              // judged on the last second of speech
     private val judgeSamples = sampleRate / 2           // wait for half a second of speech if we can
@@ -34,7 +47,7 @@ class VoiceGate(
     /** Once it's you, a little leeway, so a soft word mid-sentence isn't dropped. */
     private val leeway = 0.05f
 
-    private class Block(val pcm: ByteArray, val speech: Int)
+    private class Block(val pcm: ByteArray, val speech: Int, val near: Int)
 
     private val vadQueue = FloatArrayBuilder()
     private var blockPcm = java.io.ByteArrayOutputStream()
@@ -74,15 +87,27 @@ class VoiceGate(
             } else {
                 silenceRun = 0
                 blockSpeech += w.size
+                if (print == null && MicRecorder.level(w) >= near) {
+                    blockNear += w.size
+                    learning.add(w)
+                    if (learning.size >= learnSamples) learn()
+                }
                 recent.addLast(w); recentSamples += w.size
                 while (recentSamples - recent.first().size >= windowSamples) recentSamples -= recent.removeFirst().size
             }
         }
     }
 
+    /** The first voice heard close up becomes the one to keep. */
+    private fun learn() {
+        val all = learning.take(learning.size)
+        print = runCatching { embed(all) }.getOrNull() ?: return
+        onLearned?.invoke()
+    }
+
     private fun closeBlock(final: Boolean = false) {
-        val b = Block(blockPcm.toByteArray(), blockSpeech)
-        blockPcm = java.io.ByteArrayOutputStream(); blockFilled = 0; blockSpeech = 0
+        val b = Block(blockPcm.toByteArray(), blockSpeech, blockNear)
+        blockPcm = java.io.ByteArrayOutputStream(); blockFilled = 0; blockSpeech = 0; blockNear = 0
         if (b.speech == 0 && held.isEmpty()) { emit(b.pcm); return }
         held += b
         // speech just began: hold on for a little more to judge it by, unless it's already over
@@ -91,18 +116,36 @@ class VoiceGate(
     }
 
     private fun decide() {
+        val ref = print
+        if (ref == null) {
+            // no voice to compare with yet: speech at the phone is whoever started this, anything quieter isn't
+            for (b in held) {
+                val me = b.speech == 0 || b.near > 0
+                onVerdict?.invoke(null, me)
+                emit(if (me) b.pcm else ByteArray(b.pcm.size))
+            }
+            held.clear()
+            return
+        }
         val score: Float?
         val me: Boolean
         if (recentSamples < leastSamples) { score = null; me = true } // too little to tell: let it through
         else {
             val all = FloatArray(recentSamples).also { var i = 0; for (r in recent) { r.copyInto(it, i); i += r.size } }
-            score = runCatching { Voiceprint.similarity(embed(all), print) }.getOrNull()
+            score = runCatching { Voiceprint.similarity(embed(all), ref) }.getOrNull()
             me = score == null || score >= threshold - (if (lastMe) leeway else 0f)
         }
         lastMe = me
         onVerdict?.invoke(score, me)
         for (b in held) emit(if (me) b.pcm else ByteArray(b.pcm.size))
         held.clear()
+    }
+
+    companion object {
+        /** Speech at the phone taken as the first voice before others are judged against it. */
+        const val LEARN_SECONDS = 1.5f
+        /** A voice learned from a second and a half is a rougher likeness than a voiceprint: this much leeway. */
+        const val FIRST_VOICE_EASE = 0.04f
     }
 }
 
@@ -111,7 +154,7 @@ class VoiceGate(
  * voices taken out ([ChildFilter]), and voices that aren't the user's ([VoiceGate]). If the speaker
  * model can't load, that part passes audio through unchanged.
  */
-class VoiceFilterTranscriber(private val context: Context, private val inner: Transcriber) : Transcriber {
+class VoiceFilterTranscriber(private val context: Context, private val inner: Transcriber, private val firstVoice: Boolean = false) : Transcriber {
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "voicebar-voicefilter").apply { isDaemon = true } }
     private var gate: VoiceGate? = null
     private var vad: SileroSpeechTest? = null
@@ -125,27 +168,36 @@ class VoiceFilterTranscriber(private val context: Context, private val inner: Tr
         exec {
             if (ChildVoices.enabled(context)) child = ChildFilterPcm(ChildFilter.childMin(ChildVoices.strength(context)))
             if (!Voiceprint.active(context)) return@exec
-            val print = Voiceprint.load(context) ?: run {
-                com.ryderdavid.voicebar.AppLog.log("filter", "only my voice: no voiceprint saved, passing everything")
+            val print = Voiceprint.load(context)
+            if (print == null && !firstVoice) {
+                com.ryderdavid.voicebar.AppLog.log("filter", "only my voice: no voiceprint saved and not started by hand, passing everything")
                 return@exec
             }
             try {
                 val t0 = android.os.SystemClock.uptimeMillis()
                 Voiceprint.Engine.embed(context, FloatArray(8000)) // loads the model now, not on the first word
                 val v = SileroSpeechTest(context).also { vad = it }
-                val threshold = Voiceprint.threshold(Voiceprint.strength(context))
+                // no voiceprint: the first voice at the phone is the one kept, judged with a little leeway
+                val threshold = Voiceprint.threshold(Voiceprint.strength(context)) - if (print == null) VoiceGate.FIRST_VOICE_EASE else 0f
+                val near = AutoListenGuard.nearThreshold(com.ryderdavid.voicebar.Prefs.get(context)
+                    .getFloat(com.ryderdavid.voicebar.Prefs.NEAR_LEVEL, AutoListenGuard.DEFAULT_TYPICAL))
+                if (print == null) com.ryderdavid.voicebar.AppLog.log("filter", "only my voice: no voiceprint, keeping the first voice at the phone (level ${"%.2f".format(near)}+)")
                 // the speaker model is let go after a few idle minutes, so the first dictation in a
                 // while loads it again: audio waits here meanwhile, and the log says how long for
                 com.ryderdavid.voicebar.AppLog.log("filter", "only my voice: ready in ${android.os.SystemClock.uptimeMillis() - t0} ms")
                 gate = VoiceGate(v, { Voiceprint.Engine.embed(context, it) }, print, threshold, emit = inner::send,
+                    near = near,
+                    onLearned = { com.ryderdavid.voicebar.AppLog.log("filter", "first voice learned: other voices are judged against it now") },
                     onVerdict = { score, me ->
                         judged++
-                        val how = "similarity ${"%.2f".format(score)}, needs ${"%.2f".format(threshold)}"
                         if (!me) silenced++
+                        val how = if (score == null) "too little speech to judge, or the first voice not learned yet and this " +
+                            (if (me) "at the phone" else "quieter than talking at the phone")
+                            else "similarity ${"%.2f".format(score)}, needs ${"%.2f".format(threshold)}"
                         // the first judgement either way (a cold model getting the first stretch
                         // wrong would silence the start of the dictation), then only what it silences
                         if (judged == 1) com.ryderdavid.voicebar.AppLog.log("filter",
-                            "first stretch ${if (me) "sounds like you" else "doesn't sound like you: silenced"} ($how)")
+                            "first stretch ${if (me) "kept" else "silenced"} ($how)")
                         else if (!me) com.ryderdavid.voicebar.AppLog.log("filter", "silenced a stretch: not your voice ($how)")
                     })
             } catch (t: Throwable) {
@@ -196,13 +248,13 @@ class VoiceFilterTranscriber(private val context: Context, private val inner: Tr
 
     companion object {
         /** [t] filtered when "Ignore children's voices" is on, or "Only my voice" is on and set up. */
-        fun wrap(context: Context, t: Transcriber): Transcriber {
+        fun wrap(context: Context, t: Transcriber, firstVoice: Boolean = false): Transcriber {
             val children = ChildVoices.enabled(context)
-            val mine = Voiceprint.active(context)
+            val mine = Voiceprint.active(context) && (firstVoice || Voiceprint.has(context))
             com.ryderdavid.voicebar.AppLog.log("filter", "recognizer ${if (t is ParakeetTranscriber) "Parakeet" else "ElevenLabs"}; " +
                 "children's voices ${if (children) "on (strength ${ChildVoices.strength(context)})" else "off"}; " +
                 "only my voice ${if (mine) "on (strength ${Voiceprint.strength(context)})" else "off"}")
-            return if (children || mine) VoiceFilterTranscriber(context.applicationContext, t) else t
+            return if (children || mine) VoiceFilterTranscriber(context.applicationContext, t, firstVoice) else t
         }
     }
 }
