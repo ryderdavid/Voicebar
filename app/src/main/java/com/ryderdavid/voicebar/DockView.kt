@@ -486,7 +486,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        if (collapsed || freeFloat) {
+        // floating, or docked with the palette up (a tap anywhere closes it, and goes no further)
+        if (collapsed || freeFloat || (marks && !preview)) {
             // the whole screen, see-through: the pill can be anywhere, and the service passes every touch
             // but the pill's (and its panels') to the app
             val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) resources.displayMetrics.heightPixels
@@ -509,7 +510,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         collapsed -> max(0, height - bottomInset - barH.toInt())
         // the list may reach above an open panel (the keyboard's ⋮): only what it adds is see-through
         menuList -> max(0, menuNeed() - if (drawer != Drawer.NONE || drawerRoom) drawerPx.toInt() else 0)
-        marks -> max(0, marksNeed() - if (drawer != Drawer.NONE || drawerRoom) drawerPx.toInt() else 0)
+        marks -> max(0, height - bottomInset - barH.toInt() - if (drawer != Drawer.NONE || drawerRoom) drawerPx.toInt() else 0)
         picker -> pickerRoom().toInt()
         drawer != Drawer.NONE || drawerRoom -> 0
         tip != null -> tipRoom
@@ -832,7 +833,8 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             for (id in listOf("padPanel", "padBack")) items.firstOrNull { it.id == id && it.alpha > 0f }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
         }
         if (menuList) touch += menuBox().apply { offset(0f, barTop) }
-        if (marks) touch += marksBox().apply { offset(0f, barTop) }
+        // the palette up: every touch, so the tap away that closes it never reaches the app
+        if (marks) touch += RectF(0f, 0f, width.toFloat(), height.toFloat())
         if (picker) pickerBox()?.let { touch += it.apply { offset(0f, barTop) } }
         if (!collapsed) tipRect()?.let { touch += it }
         items.firstOrNull { it.id == "note" || it.id == "notice" }?.let { touch += RectF(it.rect).apply { offset(0f, barTop) } }
@@ -1427,7 +1429,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Bar.ExtraKey.FIX_LAST -> startFix()
             // mid-dictation a line break, never Send (as ↵ always is)
             Bar.ExtraKey.ENTER -> l?.onKey(Bar.Key.ENTER, false)
-            Bar.ExtraKey.STYLE -> setStyle(!floating)
             Bar.ExtraKey.PUNCTUATION -> toggleMarks(at)
         }
     }
@@ -1826,9 +1827,11 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
 
     // ---------------------------------------------------------------- the punctuation palette
 
-    /** On the palette: a mark in the recent row or on a page, ⌫, or a page's dot. */
+    /** On the palette: a mark in the recent row or on a page, space, ↵, ⌫, or a page's dot. */
     data class MarkKey(val mark: String, val recent: Boolean)
     object MarkBksp
+    object MarkSpace
+    object MarkEnter
     data class MarkDot(val page: Int)
 
     /** The palette is up, opened by an own key set to Punctuation; it stays up until a tap away from it. */
@@ -1928,16 +1931,17 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         for ((i, m) in marksRecent.withIndex()) out += MarkKey(m, true) to markCell(box, recentTop(box), i)
         for ((i, m) in Marks.PAGES[marksPage].withIndex()) out += MarkKey(m, false) to markCell(box, pageTop(box), i)
         val row = dotsRow(box)
-        out += MarkBksp to RectF(row.right - markKeyH, row.top, row.right, row.bottom)
+        // space as wide as two marks on the left; ↵ and ⌫ on the right; the dots between
+        val kw = markCell(box, row.top, 0).width()
+        out += MarkSpace to RectF(row.left, row.top, row.left + 2 * kw + markGap, row.bottom)
+        out += MarkEnter to RectF(row.right - 2 * kw - markGap, row.top, row.right - kw - markGap, row.bottom)
+        out += MarkBksp to RectF(row.right - kw, row.top, row.right, row.bottom)
         // each dot takes the row's height and the gaps beside it
         for ((p, d) in dotRects(box).withIndex()) out += MarkDot(p) to RectF(d.left - dp(5f), row.top, d.right + dp(5f), row.bottom)
         return out
     }
 
     private fun marksAtPoint(x: Float, y: Float): Any? = marksTargets(marksBox()).firstOrNull { it.second.contains(x, y) }?.first
-
-    /** The room the palette needs above the bar's top edge (0 when it fits below it). */
-    private fun marksNeed(): Int = max(0f, -marksBox().top + dp(8f)).toInt()
 
     /** The held mark's variants: a strip just above it, its first one over the key where it fits. */
     private fun variantBox(): RectF? {
@@ -2042,7 +2046,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
                 marksDownY = y
                 val k = marksAtPoint(x, y)
                 marksHot = k
-                if (k is MarkKey || k == MarkBksp) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                if (k is MarkKey || k == MarkBksp || k == MarkSpace || k == MarkEnter) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 if (k == MarkBksp) { listener?.onKey(Bar.Key.DELETE, false); postDelayed(marksRepeatRunnable, REPEAT_START_MS) }
                 if (k is MarkKey && !k.recent && k.mark in Marks.VARIANTS) postDelayed(marksHoldRunnable, PICKER_HOLD_MS)
                 invalidate()
@@ -2100,6 +2104,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
                     }
                     k is MarkKey -> typeMark(k.mark)
                     k is MarkDot -> marksSlideTo(k.page, 0f)
+                    k == MarkSpace -> listener?.onKey(Bar.Key.SPACE, false)
+                    // as the own Enter key: the box's Send or Go where it has one, a line break while dictating
+                    k == MarkEnter -> listener?.onKey(Bar.Key.ENTER, false)
                 }
                 marksHot = null
                 invalidate()
@@ -2117,6 +2124,9 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
         }
         return true
     }
+
+    /** The palette is up: the window takes every touch on screen, so a tap away only closes it. */
+    fun catchesEveryTouch() = marks
 
     @VisibleForTesting internal val testMarks get() = marks
     @VisibleForTesting internal val testMarksPage get() = marksPage
@@ -2171,12 +2181,15 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             fill.color = if (p == marksPage) alpha(pal.pressed, e) else alpha(pal.onCardinal, e * 0.45f)
             canvas.drawRoundRect(d, d.height() / 2, d.height() / 2, fill)
         }
-        val row = dotsRow(box)
-        val bk = RectF(row.right - markKeyH, row.top, row.right, row.bottom)
-        fill.color = alpha(if (marksHot == MarkBksp) ColorUtils.blendARGB(pal.pressed, Color.BLACK, 0.18f) else pal.pressed, e)
-        canvas.drawRoundRect(bk, bk.height() / 2, bk.height() / 2, fill)
-        fill.color = alpha(pal.onPressed, e)
-        Icons.draw(canvas, Icons.Glyph.BACKSPACE, bk.centerX(), bk.centerY(), dp(21f), fill)
+        for ((k, r) in marksTargets(box)) {
+            val glyph = when (k) { MarkSpace -> Bar.ExtraKey.SPACE; MarkEnter -> Bar.ExtraKey.ENTER; MarkBksp -> Bar.ExtraKey.BACKSPACE; else -> continue }
+            val hot = k == marksHot
+            // ⌫ in the primary color, space and ↵ tonal like the marks
+            val bg = when { k == MarkBksp && hot -> ColorUtils.blendARGB(pal.pressed, Color.BLACK, 0.18f); k == MarkBksp || hot -> pal.pressed; else -> pal.diagonal }
+            fill.color = alpha(bg, e)
+            canvas.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
+            drawExtraGlyph(canvas, glyph, r.centerX(), r.centerY(), dp(21f), alpha(if (k == MarkBksp || hot) pal.onPressed else pal.onDiagonal, e))
+        }
         variantBox()?.let { drawVariants(canvas, it) }
         canvas.restore()
     }
@@ -3963,7 +3976,6 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Bar.ExtraKey.BACKSPACE -> Icons.draw(canvas, Icons.Glyph.BACKSPACE, x, y, size, fill)
             Bar.ExtraKey.FIX_LAST -> Icons.draw(canvas, Icons.Glyph.AUTO_FIX, x, y, size, fill)
             Bar.ExtraKey.ENTER -> strokePath(canvas, x, y, size, c) { m, l -> m(19f, 5f); l(19f, 13f); l(6f, 13f); m(10f, 9f); l(6f, 13f); l(10f, 17f) }
-            Bar.ExtraKey.STYLE -> if (floating) drawDockGlyph(canvas, x, y, size, c) else drawFloatGlyph(canvas, x, y, size, c)
             Bar.ExtraKey.PUNCTUATION -> {
                 val ts = text.textSize
                 val align = text.textAlign
@@ -4096,7 +4108,7 @@ class DockView(context: Context, attrs: AttributeSet?) : View(context, attrs), K
             Bar.ExtraKey.UNDO to R.string.bar_key_undo, Bar.ExtraKey.SELECT_ALL to R.string.bar_key_select_all,
             Bar.ExtraKey.LAST_DICTATION to R.string.bar_key_last, Bar.ExtraKey.BACKSPACE to R.string.bar_key_backspace,
             Bar.ExtraKey.FIX_LAST to R.string.dock_fix_offer, Bar.ExtraKey.ENTER to R.string.bar_key_enter,
-            Bar.ExtraKey.STYLE to R.string.bar_key_style, Bar.ExtraKey.PUNCTUATION to R.string.bar_key_punctuation,
+            Bar.ExtraKey.PUNCTUATION to R.string.bar_key_punctuation,
         )
         val MENU_LABELS = mapOf(
             MenuItem.PASTE to R.string.bar_key_paste, MenuItem.DICTATIONS to R.string.menu_dictations,

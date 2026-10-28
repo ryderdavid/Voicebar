@@ -44,7 +44,6 @@ import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.EmojiSymbols
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.SpaceBar
 import androidx.compose.material.icons.rounded.Apps
@@ -541,7 +540,6 @@ private fun ownKeyIcon(key: Bar.ExtraKey) = when (key) {
     Bar.ExtraKey.SELECT_ALL -> Icons.Rounded.SelectAll
     Bar.ExtraKey.LAST_DICTATION -> Icons.Rounded.History
     Bar.ExtraKey.FIX_LAST -> Icons.Rounded.AutoFixHigh
-    Bar.ExtraKey.STYLE -> Icons.Rounded.PictureInPictureAlt
 }
 
 private val OWN_KEY_CHOICES = listOf(
@@ -554,7 +552,6 @@ private val OWN_KEY_CHOICES = listOf(
     Bar.ExtraKey.SELECT_ALL to (R.string.bar_key_select_all to R.string.bar_key_select_all_summary),
     Bar.ExtraKey.LAST_DICTATION to (R.string.bar_key_last to R.string.bar_key_last_summary),
     Bar.ExtraKey.FIX_LAST to (R.string.dock_fix_offer to R.string.bar_key_fix_summary),
-    Bar.ExtraKey.STYLE to (R.string.bar_key_style to R.string.bar_key_style_summary),
 )
 
 @Composable

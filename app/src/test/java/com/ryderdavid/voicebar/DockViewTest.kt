@@ -661,7 +661,6 @@ class DockViewTest {
         assertEquals<List<Any>>(listOf(Bar.Key.SPACE, Bar.Key.DELETE, Bar.Key.ENTER, Bar.Key.UNDO), keys)
         assertEquals(listOf(Bar.EditAction.PASTE, Bar.EditAction.SELECT_ALL), edits)
         assertEquals(listOf("repeat"), dictationActions)
-        assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null), "and set to Docked ↔ floating, it floats the bar")
     }
 
     @Test fun theMenuKeyIsAlwaysTheMenuAndTheOtherThreeAreOwnKeys() {
@@ -694,19 +693,14 @@ class DockViewTest {
         assertEquals(Bar.Key.UNDO, keys.last())
     }
 
-    @Test fun aStyleKeyFlipsBetweenDockedAndFloating() {
-        Prefs.get(activity).edit().putString(Prefs.BAR_KEY_ENTER, "style").putString(Prefs.BAR_KEY_FLOAT, "style").commit()
+    @Test fun theMenuSwitchesStyleAndAnOldStyleKeyIsItsSlotsKeyAgain() {
+        // Docked ↔ floating is no longer an own key: one saved as it is the slot's own key again
+        Prefs.get(activity).edit().putString(Prefs.BAR_KEY_ENTER, "style").commit()
         dock.reloadSettings()
         relayout()
         tap(DockView.Act.ENTER)
-        relayout()
-        assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
-        assertFalse(dock.testHas(DockView.Act.SPACE_ALT), "the floating pill")
-        tap(DockView.Act.ENTER)
-        relayout()
-        assertEquals(Prefs.BAR_STYLE_DOCKED, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
-        assertTrue(dock.testHas(DockView.Act.SPACE_ALT), "docked again")
-        // the menu does it too
+        assertEquals<List<Any>>(listOf(Bar.Key.ENTER), keys)
+        assertEquals(Prefs.BAR_STYLE_DOCKED, Prefs.get(activity).getString(Prefs.BAR_STYLE, Prefs.BAR_STYLE_DOCKED))
         menu(DockView.MenuItem.FLOAT)
         assertEquals(Prefs.BAR_STYLE_FLOATING, Prefs.get(activity).getString(Prefs.BAR_STYLE, null))
         menu(DockView.MenuItem.DOCK)
@@ -732,14 +726,18 @@ class DockViewTest {
         val key = assertNotNull(dock.testItem(DockView.Act.ENTER)).apply { offset(0f, dock.testBarTop) }
         assertTrue(box.bottom <= key.top, "above its key")
         assertTrue(box.right <= key.right + 1 && box.right >= key.right - 8 * d - 1, "lined up with the key's right edge, kept off the screen's")
-        assertTrue(box.left >= 0f && box.top >= 0f, "on screen: the window grew for it")
+        assertTrue(box.left >= 0f && box.top >= 0f, "on screen")
+        assertEquals(activity.resources.displayMetrics.heightPixels, dock.measuredHeight, "the window covers the screen, to catch the tap away")
+        assertTrue(dock.catchesEveryTouch())
         mark(DockView.MarkKey("?", false))
         mark(DockView.MarkKey(",", false))
         mark(DockView.MarkKey("@", true))
         assertEquals(listOf("?", ",", "@"), typed, "each mark typed, the recent row's too")
         assertTrue(dock.testMarks, "still up after each")
         mark(DockView.MarkBksp)
-        assertEquals<List<Any>>(listOf(Bar.Key.DELETE), keys)
+        mark(DockView.MarkSpace)
+        mark(DockView.MarkEnter)
+        assertEquals<List<Any>>(listOf(Bar.Key.DELETE, Bar.Key.SPACE, Bar.Key.ENTER), keys)
         // a tap away closes it, and does nothing else
         tap(DockView.Act.MIC)
         assertFalse(dock.testMarks)
@@ -750,6 +748,9 @@ class DockViewTest {
         assertEquals(listOf("@", ",", "?", "!", "&", "#"), dock.testMarksRecent, "the recent row leads with what was just used")
         tap(DockView.Act.ENTER)
         assertFalse(dock.testMarks)
+        assertFalse(dock.catchesEveryTouch())
+        relayout()
+        assertEquals((52 * d).toInt(), dock.height, "and the window is just the bar again")
     }
 
     @Test fun thePalettesPagesSwipeAcrossAndItsDotsJumpToOne() {
@@ -805,7 +806,7 @@ class DockViewTest {
         val box = assertNotNull(dock.testMarksBox)
         val pill = assertNotNull(dock.testItem(DockView.Act.ENTER)).apply { offset(0f, dock.testBarTop) }
         assertTrue(box.bottom <= pill.top && box.top >= 0f, "above the parked pill, on screen")
-        assertTrue(dock.floatingInsets()!!.second.any { it.contains(box.centerX(), box.centerY()) }, "and it takes touches over the app")
+        assertTrue(dock.floatingInsets()!!.second.any { it.contains(2f, 2f) }, "every touch, even far from it, so a tap away goes no further")
         tap(DockView.Act.ENTER)
         assertFalse(dock.testMarks)
         upright()

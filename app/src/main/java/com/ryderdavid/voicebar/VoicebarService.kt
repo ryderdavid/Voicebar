@@ -1358,6 +1358,8 @@ class VoicebarService : InputMethodService(), Bar.Listener {
         if (room <= 0 || !v.isShown) return
         outInsets.contentTopInsets += room
         outInsets.visibleTopInsets += room
+        // the punctuation palette up: the whole window takes touches, so a tap away only closes it
+        if (v.catchesEveryTouch()) { outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_FRAME; return }
         val h = window.window?.decorView?.height ?: return
         outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
         outInsets.touchableRegion.set(0, outInsets.contentTopInsets, v.width, h)

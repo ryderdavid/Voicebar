@@ -143,8 +143,6 @@
     <string name="bar_key_punctuation">Punctuation</string>
     <string name="bar_key_punctuation_summary">Opens a palette of marks: your recent ones, then three pages to swipe. Hold a dotted mark for more, like curly quotes and dashes</string>
     <string name="marks_recent">Recent</string>
-    <string name="bar_key_style">Docked ↔ floating</string>
-    <string name="bar_key_style_summary">Switches the bar between docked and the floating pill</string>
     <string name="bar_key_slot_float">The floating pill\'s key</string>
     <string name="menu_dictations">Recent dictations</string>
     <string name="menu_collapse">Collapse to the record pill</string>

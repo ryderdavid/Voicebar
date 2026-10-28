@@ -11,7 +11,7 @@ object Bar {
     /** What one of the seven-button bar's own keys does. In picker order, bottom up: the typing keys nearest the thumb. */
     enum class ExtraKey(val pref: String) {
         SPACE("space"), BACKSPACE("backspace"), ENTER("enter"), PUNCTUATION("punctuation"), PASTE("paste"), UNDO("undo"), SELECT_ALL("select_all"),
-        LAST_DICTATION("last_dictation"), FIX_LAST("fix_last"), STYLE("style");
+        LAST_DICTATION("last_dictation"), FIX_LAST("fix_last");
         companion object {
             fun of(pref: String?, default: ExtraKey = SPACE) = entries.firstOrNull { it.pref == pref } ?: default
         }
