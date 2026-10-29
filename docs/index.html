@@ -226,17 +226,7 @@ section{position:relative}
 .pause-demo .gap{display:inline-flex;gap:5px;padding:0 6px}
 .pause-demo .gap i{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.35;animation:dot 1.4s infinite}
 .pause-demo .gap i:nth-child(2){animation-delay:.2s}.pause-demo .gap i:nth-child(3){animation-delay:.4s}
-.swipe-demo{margin-top:auto;height:56px;border-radius:999px;background:var(--md-surface-bright);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;padding:0 18px;color:var(--md-on-surface-variant);font-weight:500;font-size:14px}
-.swipe-demo>span{display:inline-flex;align-items:center;gap:4px}
-.swipe-demo>span .sym{font-size:18px}
-.swipe-demo .p{position:absolute;left:24%;top:6px;bottom:6px;width:52%;border-radius:999px;background:var(--bar-primary);color:var(--bar-on-primary);font-weight:600;animation:slide 3.6s var(--ease) infinite}
-.swipe-demo .p span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px}
-.swipe-demo .p .b{opacity:0;animation:swap 3.6s var(--ease) infinite}
-.swipe-demo .p .a{animation:swap 3.6s var(--ease) infinite reverse}
-.swipe-demo .p .sym{font-size:20px}
-@keyframes slide{0%,18%{translate:0}50%,80%{translate:44%}96%,100%{translate:0}}
-@keyframes swap{0%,40%{opacity:0}50%,80%{opacity:1}90%,100%{opacity:0}}
-@media (prefers-reduced-motion:reduce){.swipe-demo .p,.swipe-demo .p span{animation:none}.swipe-demo .p{translate:44%}.swipe-demo .p .a{opacity:0}.swipe-demo .p .b{opacity:1}.pause-demo .gap i,.typing i{animation:none}}
+@media (prefers-reduced-motion:reduce){.pause-demo .gap i,.typing i{animation:none}}
 
 /* decorative shapes may reach past the edge; the page never scrolls sideways */
 .hero,.band{overflow-x:clip}
@@ -255,7 +245,7 @@ section{position:relative}
 .panel li{display:flex;gap:12px;align-items:flex-start}
 .panel li .sym{color:var(--md-primary);font-size:22px;margin-top:2px}
 .stage{border-radius:var(--r-xxl);background:var(--md-surface-container);padding:clamp(20px,3vw,40px);display:grid;place-items:center;min-height:420px;position:relative;overflow:hidden}
-.stage img{width:100%;max-width:440px;border-radius:var(--r-xl);box-shadow:0 1px 2px rgb(0 0 0/.08),0 16px 40px -16px rgb(0 0 0/.3);animation:pop .5s var(--ease-out)}
+.stage img{width:100%;height:auto;max-width:440px;border-radius:var(--r-xl);box-shadow:0 1px 2px rgb(0 0 0/.08),0 16px 40px -16px rgb(0 0 0/.3);animation:pop .5s var(--ease-out)}
 @keyframes pop{from{opacity:0;scale:.97}}
 @media (max-width:900px){.show{grid-template-columns:1fr}.stage{min-height:0}}
 
@@ -449,7 +439,10 @@ html.js .rise.in{opacity:1;translate:0}
         <span class="ic"><span class="sym" aria-hidden="true">swipe_right</span></span>
         <h3>Tap to finish. Swipe to send.</h3>
         <p>Tap the pill when you're done. Swipe it right to finish and send, or left to throw it away. Before anything is sent, it gets one last read for what pauses leave behind, like a stray "okay" at the end. If the cleanup can't finish, the message waits in the box for you instead of going out.</p>
-        <div class="swipe-demo" aria-hidden="true"><span><span class="sym">close</span>Cancel</span><span>Send<span class="sym">send</span></span><span class="p"><span class="a"><span class="sym">graphic_eq</span>0:07</span><span class="b">Let go to send</span></span></div>
+        <picture class="shot">
+          <source srcset="img/swipe-dark.webp" media="(prefers-color-scheme: dark)">
+          <img src="img/swipe-light.webp" width="800" height="258" alt="The voice pill swiped right past the mark: Send on its left, and Let go to send." loading="lazy">
+        </picture>
       </article>
       <article class="card hi c6 rise">
         <span class="ic"><span class="sym" aria-hidden="true">text_fields</span></span>
