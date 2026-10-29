@@ -219,9 +219,7 @@ section{position:relative}
 .pc .said-raw .to .sym{color:inherit}
 .shot{margin-top:auto;border-radius:var(--r-l);overflow:hidden;background:var(--md-surface-bright);box-shadow:0 0 0 1px color-mix(in srgb,currentColor 10%,transparent)}
 .shot img{width:100%;height:auto}
-.cmds{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:8px}
-.cmd{display:inline-flex;align-items:center;height:36px;padding:0 16px;border-radius:999px;background:var(--md-surface-bright);color:var(--md-on-surface);font-weight:500;font-size:15px}
-.cmd b{font-weight:500;color:var(--md-tertiary);margin-right:6px}
+.cmd-list{margin-top:14px;color:var(--md-on-surface-variant);font-size:15px}
 .pause-demo{margin-top:auto;display:flex;align-items:center;gap:6px;font-size:clamp(18px,1.6vw,20px);font-weight:500;flex-wrap:wrap}
 .pause-demo .gap{display:inline-flex;gap:5px;padding:0 6px}
 .pause-demo .gap i{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.35;animation:dot 1.4s infinite}
@@ -457,15 +455,11 @@ html.js .rise.in{opacity:1;translate:0}
         <span class="ic"><span class="sym" aria-hidden="true">record_voice_over</span></span>
         <h3>"Voice bar, send."</h3>
         <p>End a dictation with <em>voice bar</em> and a command. The command is never typed; the pill turns purple and shows it instead. Loose wording works.</p>
-        <div class="cmds" aria-label="Commands: done, send, keyboard, clean up, cancel, close, listen">
-          <span class="cmd" aria-hidden="true"><b>voice bar</b>send</span>
-          <span class="cmd" aria-hidden="true">done</span>
-          <span class="cmd" aria-hidden="true">clean up</span>
-          <span class="cmd" aria-hidden="true">keyboard</span>
-          <span class="cmd" aria-hidden="true">cancel</span>
-          <span class="cmd" aria-hidden="true">close</span>
-          <span class="cmd" aria-hidden="true">listen</span>
-        </div>
+        <picture class="shot">
+          <source srcset="img/cmd-dark.webp" media="(prefers-color-scheme: dark)">
+          <img src="img/cmd-light.webp" width="800" height="345" alt="The voice pill turned purple, showing the command it heard: Voice bar: send, with Swipe up to dismiss above it." loading="lazy">
+        </picture>
+        <p class="cmd-list">send · done · clean up · keyboard · cancel · close · listen</p>
       </article>
     </div>
   </div>
@@ -527,7 +521,7 @@ html.js .rise.in{opacity:1;translate:0}
             <li><span class="sym" aria-hidden="true">swipe_right</span><span>Switch between docked and floating, or to another keyboard, from the same list.</span></li>
           </ul>
         </div>
-        <div class="panel" role="tabpanel" id="p-float" aria-labelledby="t-float" data-img="float" data-alt="The floating pill: menu, Cursor, ABC, Voice and Backspace, and above it the collapsed pill of just the menu and Voice." hidden>
+        <div class="panel" role="tabpanel" id="p-float" aria-labelledby="t-float" data-img="float" data-alt="The floating pill parked under the message box: its grip, the menu, Cursor, ABC, Voice and a Punctuation key." hidden>
           <h3>Float it, or shrink it to one button</h3>
           <p>Choose the floating style and the bar becomes a small pill: ☰, Cursor, ABC, Voice and one key you choose. From ☰ it shrinks to just the record button.</p>
           <ul>
@@ -540,7 +534,7 @@ html.js .rise.in{opacity:1;translate:0}
       <div class="stage rise">
         <picture id="stage-pic">
           <source id="stage-dark" srcset="img/keys-dark.webp" media="(prefers-color-scheme: dark)">
-          <img id="stage-img" src="img/keys-light.webp" width="800" height="764" alt="Voicebar's keyboard with a swipe trail across the letters." loading="lazy">
+          <img id="stage-img" src="img/keys-light.webp" width="800" height="754" alt="Voicebar's keyboard with a swipe trail across the letters." loading="lazy">
         </picture>
       </div>
     </div>
